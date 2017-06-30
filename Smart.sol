@@ -1,154 +1,31 @@
 pragma solidity ^0.4.11;
+import "Erc20Token.sol";
+import "IcoPhasedContract.sol";
+import "MarketplaceToken.sol";
 
-contract AdminManagedContract {
-    /* Map our users to admins */
-    mapping (address => bool) adminUsers;
-
-    function AdminManagedContract() {
-        adminUsers[msg.sender] = true;
-    }
-
-    modifier adminOnly {
-        if (!adminUsers[msg.sender]) throw;
-        _;
-    }
-
-    function adminAdd(address _adminAddress) adminOnly {
-        adminUsers[_adminAddress] = true;
-    }
-    function adminRemove(address _adminAddress) adminOnly {
-        // Don't allow removal of self
-        if (_adminAddress == msg.sender)
-            throw;
-
-        // Remove this admin user
-        adminUsers[_adminAddress] = false;
-    }
-}
-
-contract SmartTradingFund is AdminManagedContract {
-    /* Map all our our balances for issued tokens */
-    mapping (address => uint256) balances;
-
-    /* Map between users and their approval addresses and amounts */
-    mapping(address => mapping (address => uint256)) allowed;
-
-    /* The name of the contract */
-    string public constant name = "Smart Trading Fund";
-
-    /* The symbol for the contract */
-    string public constant symbol = "SMRT";
-
-    /* How many DPs are in use in this contract */
-    uint8 public constant decimals = 0;
-
-    /* Defines whether or not we are in the ICO phase */
-    bool icoPhase = true;
+contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), IcoPhasedContract, MarketplaceToken {
+    /* Sets the shareholder account for auto buyback */
+    address shareholderAccount;
 
     /* Defines the sale price during ICO */
-    uint256 icoUnitPrice = 10 finney;
+    uint256 constant icoUnitPrice = 10 finney;
 
-    uint256 _totalSupply = 0;
-
-    /* Our transfer event to fire whenever we shift SMRT around */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    
-    /* Our approval event when one user approves another to control */
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
-
+    /* Fired whenever the shareholder for buyback is changed */
+    event AuditShareholder(address shareholder);
 
     /* Initializes contract and adds creator as an admin user */
     function SmartTradingFund() {
-    }
+        // Set the first admin to be the person creating the contract
+        adminUsers[msg.sender] = true;
+        AuditAdminAdded(msg.sender);
 
-
-    function totalSupply() constant returns (uint256 totalSupply) {
-        totalSupply = _totalSupply;
-    }
-
-    // What is the balance of a particular account?
-    function balanceOf(address _owner) constant returns (uint256 balance) {
-        return balances[_owner];
-    }
-    // Transfer the balance from owner's account to another account
-    function transfer(address _to, uint256 _amount) returns (bool success) {
-        /* Check if sender has balance and for overflows */
-        if (balances[msg.sender] < _amount || balances[_to] + _amount < balances[_to])
-            throw;
-
-        /* Add and subtract new balances */
-        balances[msg.sender] -= _amount;
-        balances[_to] += _amount;
-
-        /* Fire notification event */
-        Transfer(msg.sender, _to, _amount);
-        success = true;
-    }
-    
-     // Send _value amount of tokens from address _from to address _to
-     // The transferFrom method is used for a withdraw workflow, allowing contracts to send
-     // tokens on your behalf, for example to "deposit" to a contract address and/or to charge
-     // fees in sub-currencies; the command should fail unless the _from account has
-     // deliberately authorized the sender of the message via some mechanism; we propose
-     // these standardized APIs for approval:
-     function transferFrom(
-         address _from,
-        address _to,
-        uint256 _amount
-    ) returns (bool success) {
-        if (balances[_from] >= _amount
-            && allowed[_from][msg.sender] >= _amount
-            && _amount > 0
-            && balances[_to] + _amount > balances[_to]) {
-            balances[_from] -= _amount;
-            allowed[_from][msg.sender] -= _amount;
-            balances[_to] += _amount;
-            Transfer(_from, _to, _amount);
-            return true;
-        } else {
-            return false;
-        }
-    }
- 
-    // Allow _spender to withdraw from your account, multiple times, up to the _value amount.
-    // If this function is called again it overwrites the current allowance with _value.
-    function approve(address _spender, uint256 _amount) returns (bool success) {
-        allowed[msg.sender][_spender] = _amount;
-        Approval(msg.sender, _spender, _amount);
-        return true;
-    }
-
-    function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
-        return allowed[_owner][_spender];
-    }
-
-
-    /* Ensures a function can only be called during the ICO */
-    modifier preIco {
-        if (!icoPhase) throw;
-        _;
-    }
-    /* Ensures a function can only be called after the ICO */
-    modifier postIco {
-        if (icoPhase) throw;
-        _;
-    }
-
-    /* Close the ICO phase and transition to execution phase */
-    function closeIco() adminOnly preIco {
-        icoPhase = false;
-    }
-
-    /* Handle the defautl method depending on whether we're in ICO or not the actions are different */
-    function () payable {
-        if (icoPhase)
-            receiveEtherIco();
-        else
-            receiveEtherLive();
+        // Set the shareholder to initially be the contract creator
+        shareholderAccount = msg.sender;
+        AuditShareholder(msg.sender);
     }
 
     /* Handle receiving ether in ICO phase - we work out how much the user has bought, allocate a suitable balance and send their change */
-    function receiveEtherIco() private preIco {
+    function () onlyDuringIco payable {
         // Determine how much they've actually purhcased and any ether change
         uint256 tokensPurchased = msg.value / icoUnitPrice;
         uint256 purchaseTotalPrice = tokensPurchased * icoUnitPrice;
@@ -169,19 +46,38 @@ contract SmartTradingFund is AdminManagedContract {
             Transfer(0, msg.sender, tokensPurchased);
     }
 
-    function receiveEtherLive() private postIco {
-        // For now we don't know what to do
-        throw;
+    /* Update our shareholder account that we send any buyback shares to for holding */
+    function shareholderSet(address shareholder) adminOnly {
+        shareholderAccount = shareholder;
+        AuditShareholder(shareholder);
     }
 
-    /* ToDo 
-    Add live ether dividend support
-    cashOut - not just ICO
-    Icon?
-    Base contracts abstract?
-    "Gas is paid by the owner of the wallet contract (0.00 ETHER)" (addNetworkFunds ??)
-    cancel/sell/buy share sales / list sahres
-    Split inheritance into different files
-    ERC20 Support
-    */
+    /* Makes a dividend payment - we send it to all coin holders but we exclude any coins held in the shareholder account as the equivalent dividend is excluded prior to paying in to reduce overall
+       transaction fees */
+    function dividendPay() payable adminOnly onlyAfterIco {
+        // Determine how much coin supply we have minus that held by shareholder
+
+        // Work out from this a dividend per share
+
+        // Enum all accounts and 
+
+        // Rather than sending any rounding errors back we hold for our buyback potentials - add audit for this
+    }
+
+    /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
+    function buybackAddFunds() payable adminOnly onlyAfterIco {
+        // Just audit this
+    }
+
+    /* Sets minimum and maximum amounts for buyback where 0 indicates no limit */
+    function buybackSetLimits(uint256 minimum, uint256 maximum) adminOnly onlyAfterIco {
+        // Store values in public variables    }
+
+    /* Defines the current value of the funds assets in USD and ETHER */
+    function fundValueSet(uint256 usdTotalFund, uint256 etherTotalFund) adminOnly onlyAfterIco {
+        // Store values
+
+        // Audit this
+    }
+
 }
