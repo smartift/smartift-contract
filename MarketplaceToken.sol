@@ -8,6 +8,7 @@ contract MarketplaceToken is IcoPhasedContract {
         uint256 quantityRemaining;
         uint256 quantityStart;
         address account;
+        uint256 timestamp;
     }
 
     /* Defines all the sell orders in the system */
@@ -51,10 +52,10 @@ contract MarketplaceToken is IcoPhasedContract {
         // Add the order
         if (isBuy) {
             buyOrders.length++;
-            buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender);
+            buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp);
         } else {
             sellOrders.length++;
-            sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender);
+            sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp);
         }
 
         // Audit the creation
