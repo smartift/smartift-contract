@@ -3,7 +3,7 @@ import "Erc20Token.sol";
 import "IcoPhasedContract.sol";
 import "MarketplaceToken.sol";
 
-contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), IcoPhasedContract, MarketplaceToken(5) {
+contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Sets the shareholder account for auto buyback */
     address buybackShareholderAccount;
 
@@ -163,4 +163,11 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
         
         // Don't forget to fire Transfer() and update owner list
     }
+
+
+
+    // TODO: Buyback fund not all ether - just that marked as for buyback fund (dividend remainder + sent expressly)
+    // TODO: Admin methods to cancel all open trades
+    // TODO: On transfer close any sell orders on that account or reduce #
+    // TODO: Check if blah = array[index]; blah.val++; actuall updateds iun array[index] - some changes in marketplace around this
 }

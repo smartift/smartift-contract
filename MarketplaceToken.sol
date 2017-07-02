@@ -1,7 +1,8 @@
 pragma solidity ^0.4.11;
 import "IcoPhasedContract.sol";
+import "Erc20Token.sol";
 
-contract MarketplaceToken is IcoPhasedContract {
+contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fund", "SIF", 0) {
     struct Order {
         uint256 id;
         uint256 price;
@@ -9,6 +10,8 @@ contract MarketplaceToken is IcoPhasedContract {
         uint256 quantityStart;
         address account;
         uint256 timestamp;
+        uint256 amountLoaded;
+        uint256 amountSpent;
     }
 
     /* Defines all the sell orders in the system */
@@ -38,35 +41,114 @@ contract MarketplaceToken is IcoPhasedContract {
     }
 
     /* Adds a sell order to the system.  It will follow normal consolidation method. */
-    function marketplaceSellOrder(uint256 price, uint256 quantity) onlyAfterIco returns(uint256 numberSold, uint256 sellOrderId) {
-        (numberSold, sellOrderId) = marketplaceOrder(false, price, quantity);
+    function marketplaceSellOrder(uint256 price, uint256 quantity) onlyAfterIco returns(uint256 numberSold, uint256 id) {
+        // Add the order
+        sellOrders.length++;
+        sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp, 0, 0);
+
+        // Audit the creation
+        MarketplaceOrderOpened("Sell", nextOrderId, price, quantity);
+
+        // Do we have any remaining to purchase if this was a sell?  If so let's use our buybackProcessOrderBook()
+        Order newOrder = sellOrders[sellOrders.length - 1];
+        if (newOrder.quantityRemaining > 0)
+            buybackProcessOrderBook();
+
+        // Determine our return values
+        numberSold = quantity - newOrder.quantityRemaining;
+        id  = nextOrderId;
+        nextOrderId++;
+
+        // Tidy up the sell / buy orders lists now we've extract the data we care about
+        marketplaceTidyArrays();
     }
 
     /* Adds a buy order to the system.  It will follow normal consolidation method. */
-    function marketplaceBuyOrder(uint256 price, uint256 quantity) onlyAfterIco returns(uint256 numberPurchased, uint256 buyOrderId) {
-        (numberPurchased, buyOrderId) = marketplaceOrder(true, price, quantity);
-    }
+    function marketplaceBuyOrder(uint256 price, uint256 quantity) onlyAfterIco payable returns(uint256 numberPurchased, uint256 id) {
+        // Ensure correct value was sent with the buy - we store the ether
+        if (msg.value != quantity * price)
+            throw;
 
-    /* Adds a buy or sell order to the system.  It will follow normal consolidation method. */
-    function marketplaceOrder(bool isBuy, uint256 price, uint256 quantity) private returns (uint256 number, uint256 id) {
-        // Add the order
-        if (isBuy) {
-            buyOrders.length++;
-            buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp);
-        } else {
-            sellOrders.length++;
-            sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp);
-        }
+        // Create the order
+        buyOrders.length++;
+        buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp, msg.value, 0);
 
         // Audit the creation
-        MarketplaceOrderOpened(isBuy ? "Buy" : "Sell", nextOrderId, price, quantity);
+        MarketplaceOrderOpened("Buy", nextOrderId, price, quantity);
 
-        // Perform market consolidation loop
-        marketplaceConsolidation();
-        Order newOrder = isBuy ? buyOrders[buyOrders.length - 1] : sellOrders[sellOrders.length - 1];
+        // Do an initial sift to determine the lowest price that is within our price range in the stack
+        uint256 cheapestPrice = 0;
+        bool validPricesExist = false;
+        uint256 sellIndex;
+        Order buyOrder = buyOrders[buyOrders.length - 1];
+        for (sellIndex = 0; sellIndex < sellOrders.length; sellIndex++)
+            if (sellOrders[sellIndex].quantityRemaining > 0 && sellOrders[sellIndex].price <= buyOrder.price && (!validPricesExist || sellOrders[sellIndex].price < cheapestPrice)) {
+                cheapestPrice = sellOrders[sellIndex].price;
+                validPricesExist = true;
+            }
+        
+        // As long as other cheap prices still exist, keep looping and closing for this price
+        while (validPricesExist) {
+            // In this loop we do two things - firstly if the order is at loopPrice, we buy up to theirs and our maximum quantity.  Secondly we look for the next-cheapest price.
+            uint256 loopPrice = cheapestPrice;
+            validPricesExist = false;
+            for (sellIndex = 0; sellIndex < sellOrders.length; sellIndex++) {
+                // First - if the price of this particular order is at the price we're looking for - we can trade and then re-loop
+                Order sellOrder = sellOrders[sellIndex];
+                if (sellOrder.price == loopPrice && sellOrder.quantityRemaining > 0) {
+                    // Decide how many we want to buy
+                    uint256 numberToBuy = buyOrder.quantityRemaining > sellOrder.quantityRemaining ? sellOrder.quantityRemaining : buyOrder.quantityRemaining;
+                    uint256 costToBuy = numberToBuy * sellOrder.price;
+                    if (costToBuy + buyOrder.amountSpent > buyOrder.amountLoaded)
+                        // If this somehow happens it is a bug but we cannot allow spending money that isn't there
+                        throw;
+
+                    // Update the orders respectively including audit
+                    sellOrders[sellIndex].quantityRemaining -= numberToBuy;
+                    buyOrder.quantityRemaining -= numberToBuy; // For local count
+                    buyOrder.amountSpent += costToBuy;
+                    buyOrders[buyOrders.length - 1].quantityRemaining -= numberToBuy; // For main list
+                    buyOrders[buyOrders.length - 1].amountSpent += costToBuy;
+                    MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrder.quantityRemaining);
+                    MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellIndex].quantityRemaining);
+
+                    // Transfer tokens from sell order account to buy order account - include a Transfer() here and update the token recipient lists
+                    balances[sellOrder.account] -= numberToBuy;
+                    bool isBuyerNew = balances[buyOrder.account] > 0;
+                    balances[buyOrder.account] += numberToBuy;
+                    if (isBuyerNew)
+                        tokenOwnerAdd(buyOrder.account);
+                    if (balances[sellOrder.account] < 1)
+                        tokenOwnerRemove(sellOrder.account);
+                    Transfer(sellOrder.account, buyOrder.account, numberToBuy);
+
+                    // Send ether to person with sell order
+                    if (!sellOrder.account.send(costToBuy))
+                        throw;
+
+                    // If nothing remaining to buy, we can stop here
+                    if (buyOrder.quantityRemaining < 1)
+                        break;
+
+                    // Loop for next one
+                    continue;
+                }
+
+                // Second - if we're still here the question is will this become the new cheapest price?
+                if (sellOrder.price > loopPrice && sellOrder.quantityRemaining > 0 && sellOrder.price <= buyOrder.price && (!validPricesExist || sellOrder.price < cheapestPrice)) {
+                    cheapestPrice = sellOrders[sellIndex].price;
+                    validPricesExist = true;
+                }
+            }
+
+            // If the buy order is closed, we can stop looking
+            if (buyOrder.quantityRemaining < 1)
+                break;
+        }
 
         // Determine our return values
-        number = quantity - newOrder.quantityRemaining;
+        Order newOrder = buyOrders[buyOrders.length - 1];
+        numberPurchased = quantity - newOrder.quantityRemaining;
         id  = nextOrderId;
         nextOrderId++;
 
@@ -81,7 +163,24 @@ contract MarketplaceToken is IcoPhasedContract {
 
     /* Cancels the specified buy order if it is still valid and owned by the caller. */
     function marketplaceBuyCancel(uint256 orderId) onlyAfterIco {
+        // Determine remaining amount to return
+        uint256 etherToReturn;
+        bool found = false;
+        for (uint256 i = 0; i < buyOrders.length; i++)
+            if (buyOrders[i].id == orderId && buyOrders[i].account == msg.sender) {
+                found = true;
+                etherToReturn = buyOrders[i].amountLoaded - buyOrders[i].amountSpent;
+                break;
+            }
+        if (!found)
+            throw;
+        
+        // Close the order
         marketplaceCancel(true, orderId);
+
+        // Finally send back the ether to the caller
+        if (etherToReturn > 0 && !msg.sender.send(etherToReturn))
+            throw;
     }
 
     function marketplaceCancel(bool isBuy, uint256 orderId) private {
@@ -111,18 +210,6 @@ contract MarketplaceToken is IcoPhasedContract {
         marketplaceTidyArrays();
     }
 
-    /* Consolidates buy orders against sell orders.  Fires events as items are bought/sold including a current market price based on this.  Buy orders are processed against sell orders with lowest price being purchased
-       first and the oldest at that price.  Once the oldest at the price are bought then the more new, etc.  This continues until that price is exuahsted for the buy order and it continues for the next lowest price - again
-       aged oldest to newest.  If there are no buy orders between buyback low/high price and sell orders still exist and we hold ether then the coin itself will buy it at the cheapest price it can and transfer the holding
-       to the shareholder address. */
-    function marketplaceConsolidation() private {
-        // We probably want a transaction fee here and an address to send it to or an admin method to withdraw or keep it in fund - buyback?
-
-        // We want to announce sell/buy order quantities here (including those we've just created)
-
-        // Call buybackProcessOrderBook
-    }
-
     /* Tidy up the buy and sell order arrays - removing any now-empty items and resizing the arrays accordingly. */
     function marketplaceTidyArrays() private {
         // We enumerate through the buy array looking for any with a remaining balance of 0 and shuffle up from there, keep doing this until we get to the end
@@ -132,6 +219,11 @@ contract MarketplaceToken is IcoPhasedContract {
             if (buyOrders[mainLoopIndex].quantityRemaining < 1) {
                 // First lets mark this as closed in the audit
                 MarketplaceOrderClosed("Buy", buyOrders[mainLoopIndex].id);
+
+                // Attempt to send back any remaining funds that have not been spent
+                uint256 etherToReturn = buyOrders[mainLoopIndex].amountLoaded - buyOrders[mainLoopIndex].amountSpent;
+                if (etherToReturn > 0 && !buyOrders[mainLoopIndex].account.send(etherToReturn))
+                    throw;
 
                 // We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book
                 for (shuffleIndex = mainLoopIndex; shuffleIndex < buyOrders.length - 1; shuffleIndex++)
