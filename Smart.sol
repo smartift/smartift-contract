@@ -171,7 +171,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         // Only use buybackFundAmount
     }
 
-    // TODO: Admin methods to cancel all open trades
     // TODO: On transfer close any sell orders on that account or reduce #
     // TODO: Check if blah = array[index]; blah.val++; actuall updateds iun array[index] - some changes in marketplace around this
 }

@@ -14,6 +14,9 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
         uint256 amountSpent;
     }
 
+    /* Defines a map allowing people to withdraw funds if a market was closed and repayment failed */
+    mapping (address => uint256) failedWithdrawRequests;
+
     /* Defines all the sell orders in the system */
     Order[] public sellOrders;
 
@@ -26,6 +29,9 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
     /* Defines the ID of the next order (buy or sell) that we will create. */
     uint256 nextOrderId;
 
+    /* Defines if the marketplace is currently closed */
+    bool isClosed;
+
     /* Announces an order is opened */
     event MarketplaceOrderOpened(string orderType, uint256 id, uint256 price, uint256 quantity);
 
@@ -35,13 +41,24 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
     /* Announce an order has been closed */
     event MarketplaceOrderClosed(string orderType, uint256 id);
 
+    /* Announce that an admin closed all orders for some reason */
+    event MarketplaceAdminClosed(string details);
+
+    /* Announces that the marketplace has been opened. */
+    event MarketplaceAdminOpened();
+
     function MarketplaceToken(uint256 _feePercentageOneDp) {
         feePercentageOneDp = _feePercentageOneDp;
         nextOrderId = 0;
+        isClosed = false;
     }
 
     /* Adds a sell order to the system.  It will follow normal consolidation method. */
     function marketplaceSellOrder(uint256 price, uint256 quantity) onlyAfterIco returns(uint256 numberSold, uint256 id) {
+        // If we're closed, throw
+        if (isClosed)
+            throw;
+
         // Add the order
         sellOrders.length++;
         sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp, 0, 0);
@@ -65,6 +82,10 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
     /* Adds a buy order to the system.  It will follow normal consolidation method. */
     function marketplaceBuyOrder(uint256 price, uint256 quantity) onlyAfterIco payable returns(uint256 numberPurchased, uint256 id) {
+        // If we're closed, throw
+        if (isClosed)
+            throw;
+
         // Ensure correct value was sent with the buy - we store the ether
         if (msg.value != quantity * price)
             throw;
@@ -158,11 +179,19 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
     /* Cancels the specified sell order if it is still valid and owned by the caller. */
     function marketplaceSellCancel(uint256 orderId) onlyAfterIco {
+        // If we're closed, throw
+        if (isClosed)
+            throw;
+
         marketplaceCancel(false, orderId);
     }
 
     /* Cancels the specified buy order if it is still valid and owned by the caller. */
     function marketplaceBuyCancel(uint256 orderId) onlyAfterIco {
+        // If we're closed, throw
+        if (isClosed)
+            throw;
+
         // Determine remaining amount to return
         uint256 etherToReturn;
         bool found = false;
@@ -242,6 +271,54 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
                 sellOrders.length--;
             }
         }
+    }
+
+    /* Allows an admin to close all open orders and close the entire market place.  Thsi can intentionally happen before ICO is ended - the idea here is to stop any abuse of marketplace or
+       to potentially close the marketplace if a bug is somehow found at a future date. */
+    function marketplaceCloseAll(string details) adminOnly {
+        // Sell orders are pretty simple - just audit their closure
+        uint256 i;
+        for (i = 0; i < sellOrders.length; i++)
+            MarketplaceOrderClosed("Sell", sellOrders[i].id);
+        sellOrders.length = 0;
+
+        // Buy orders we need to refund any payments
+        for (i = 0; i < buyOrders.length; i++) {
+            MarketplaceOrderClosed("Buy", buyOrders[i].id);
+            uint256 refundAmount = buyOrders[i].amountLoaded - buyOrders[i].amountSpent;
+            if (refundAmount > 0 && !buyOrders[i].account.send(refundAmount))
+                // We cannot stop the whole thing as this is potentially critical code if we're trying to live-fix a defect so we have to enter a withdrawable state
+                failedWithdrawRequests[buyOrders[i].account] += refundAmount;
+        }
+        buyOrders.length = 0;
+
+        // Audit this event
+        MarketplaceAdminClosed(details);
+
+        // Close the marketplace
+        isClosed = true;
+        nextOrderId = 0;
+    }
+
+    /* Re-opens a closed marketpalce. */
+    function marketplaceOpen() adminOnly {
+        // We can only work on closed marketplace
+        if (!isClosed)
+            throw;
+        
+        // Re-open the market
+        MarketplaceAdminOpened();
+        isClosed = false;
+    }
+
+    /* Allows withdrawal of funds that were allocated after a failed withdrawal during market closure */
+    function marketplaceEmergencyWithdrawal() {
+        uint256 amountToWithdraw = failedWithdrawRequests[msg.sender];
+        if (amountToWithdraw < 1)
+            throw;
+        failedWithdrawRequests[msg.sender] = 0;
+        if (!msg.sender.send(amountToWithdraw))
+            throw;
     }
 
     function buybackProcessOrderBook() private;
