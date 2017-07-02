@@ -121,13 +121,13 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     }
 
     /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
-    function buybackAddFunds() payable adminOnly onlyAfterIco {
+    function buybackAddFunds() payable adminOnly {
         /* Audit this and increase the amount we have allocated to buyback */
         buybackFundAmount += msg.value;
     }
 
     /* Sets minimum and maximum amounts for buyback where 0 indicates no limit */
-    function buybackSetLimits(uint256 minimum, uint256 maximum) adminOnly onlyAfterIco {
+    function buybackSetLimits(uint256 minimum, uint256 maximum) adminOnly {
         /* Store values in public variables */
         buybackMinimumPurchaseAmount = minimum;
         buybackMaximumPurchaseAmount = maximum;
@@ -191,7 +191,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         sellOrders[sellOrderIndex].quantityRemaining -= amountToPurchase;
         MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellOrderIndex].quantityRemaining);
 
-        /* Finally lets send some ether to the seller minus fees */
+        /* Finally lets send some ether to the seller minus fees
         uint256 costToBuy = amountToPurchase * sellOrder.price;
         uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
         uint256 amountToSeller = costToBuy - transactionCost;
