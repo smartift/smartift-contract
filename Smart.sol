@@ -10,12 +10,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Defines the sale price during ICO */
     uint256 constant icoUnitPrice = 10 finney;
 
-    /* Defines how much the fund is worth per share in USD based on last reported price. */
-    uint256 public fundValuePerShareUsd;
-
-    /* Defines how much the fund is worth per share in ether based on last reported price. */
-    uint256 public fundValuePerShareEther;
-
     /* Defines how much the fund is worth in total in USD based on last reported price. */
     uint256 public fundValueTotalUsd;
 
@@ -35,7 +29,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     event BuybackShareholderUpdated(address shareholder);
 
     /* Fired when the fund value is updated by an administrator  */
-    event FundValueUpdate(uint256 fundValuePerShareUsd, uint256 fundValuePerShareEther, uint256 fundValueTotalUsd, uint256 fundValueTotalEther);
+    event FundValueUpdate(uint256 fundValueTotalUsd, uint256 fundValueTotalEther);
 
     /* Fired when the fund is eventually closed. */
     event FundClosed();
@@ -54,8 +48,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         BuybackShareholderUpdated(msg.sender);
 
         /* Setup other values */
-        fundValuePerShareEther = 0;
-        fundValuePerShareUsd = 0;
         fundValueTotalEther = 0;
         fundValueTotalUsd = 0;
     }
@@ -138,11 +130,9 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         /* Store values */
         fundValueTotalUsd = _usdTotalFund;
         fundValueTotalEther = _etherTotalFund;
-        fundValuePerShareUsd = _usdTotalFund / totalSupplyAmount;
-        fundValuePerShareEther = _etherTotalFund / totalSupplyAmount;
 
         /* Audit this */
-        FundValueUpdate(fundValuePerShareUsd, fundValuePerShareEther, fundValueTotalUsd, fundValueTotalEther);
+        FundValueUpdate(fundValueTotalUsd, fundValueTotalEther);
     }
 
     /* Closes the fund down - this can only happen if the fund has bought back 90% of the shareholding and is designed to be supported by payout of ether matching value to remaining shareholders outside of
@@ -191,7 +181,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         sellOrders[sellOrderIndex].quantityRemaining -= amountToPurchase;
         MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellOrderIndex].quantityRemaining);
 
-        /* Finally lets send some ether to the seller minus fees
+        /* Finally lets send some ether to the seller minus fees */
         uint256 costToBuy = amountToPurchase * sellOrder.price;
         uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
         uint256 amountToSeller = costToBuy - transactionCost;
@@ -204,6 +194,5 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Handle the transaction fee from a sell order being available to the contract. */
     function marketplaceTransactionCostAvailable(uint256 amount) private {
         buybackFundAmount += amount;
-
     }
 }
