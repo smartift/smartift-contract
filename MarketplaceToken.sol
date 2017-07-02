@@ -124,7 +124,25 @@ contract MarketplaceToken is IcoPhasedContract {
 
     /* Tidy up the buy and sell order arrays - removing any now-empty items and resizing the arrays accordingly. */
     function marketplaceTidyArrays() private {
-        // TODO: Remove empty orders from buy and sell books
+        // We enumerate through the buy array looking for any with a remaining balance of 0 and shuffle up from there, keep doing this until we get to the end
+        uint256 mainLoopIndex;
+        uint256 shuffleIndex;
+        for (mainLoopIndex = 0; mainLoopIndex < buyOrders.length; mainLoopIndex++) {
+            if (buyOrders[mainLoopIndex].quantityRemaining < 1) {
+                // We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book
+                for (shuffleIndex = mainLoopIndex; shuffleIndex < buyOrders.length - 1; shuffleIndex++)
+                    buyOrders[shuffleIndex] = buyOrders[shuffleIndex + 1];
+                buyOrders.length--;
+            }
+        }
+        for (mainLoopIndex = 0; mainLoopIndex < sellOrders.length; mainLoopIndex++) {
+            if (sellOrders[mainLoopIndex].quantityRemaining < 1) {
+                // We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book
+                for (shuffleIndex = mainLoopIndex; shuffleIndex < sellOrders.length - 1; shuffleIndex++)
+                    sellOrders[shuffleIndex] = sellOrders[shuffleIndex + 1];
+                sellOrders.length--;
+            }
+        }
     }
 
     function buybackProcessOrderBook() private;
