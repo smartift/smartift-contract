@@ -40,6 +40,9 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
     /* Fired when the fund is eventually closed. */
     event FundClosed();
 
+    /* Indicates a dividend payment was made */
+    event DividendPayment(uint256 etherPerShare, uint256 totalPaidOut);
+
     /* Initializes contract and adds creator as an admin user */
     function SmartTradingFund() {
         // Set the first admin to be the person creating the contract
@@ -96,7 +99,22 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
         uint256 remainder = msg.value - (paymentPerShare * validSupply);
 
         // Enum all accounts and send them payment
-        // TODO: Finish this
+        uint256 totalPaidOut = 0;
+        for (uint256 i = 0; i < allTokenHolders.length; i++) {
+            // Calculate how much goes to this shareholder
+            address addr = allTokenHolders[i];
+            uint256 etherToSend = paymentPerShare * balances[addr];
+            if (etherToSend < 1)
+                continue;
+            totalPaidOut += etherToSend;
+
+            // Now let's send them the money
+            if (!addr.send(etherToSend))
+                throw;
+        }
+
+        // Audit this
+        DividendPayment(paymentPerShare, totalPaidOut);
 
         // Rather than sending any rounding errors back we hold for our buyback potentials - add audit for this
         BuybackFundIncrease(remainder);
