@@ -37,6 +37,9 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
     /* Fired when the fund value is updated by an administrator  */
     event FundValueUpdate(uint256 fundValuePerShareUsd, uint256 fundValuePerShareEther, uint256 fundValueTotalUsd, uint256 fundValueTotalEther);
 
+    /* Fired when the fund is eventually closed. */
+    event FundClosed();
+
     /* Initializes contract and adds creator as an admin user */
     function SmartTradingFund() {
         // Set the first admin to be the person creating the contract
@@ -124,10 +127,20 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
         FundValueUpdate(fundValuePerShareUsd, fundValuePerShareEther, fundValueTotalUsd, fundValueTotalEther);
     }
 
+    /* Closes the fund down - this can only happen if the fund has bought back 90% of the shareholding and is designed to be supported by payout of ether matching value to remaining shareholders outside of
+       the contract. */
+    function closeFund() adminOnly onlyAfterIco {
+        // Ensure the shareholder owns required amount of fund
+        uint256 requiredAmount = (_totalSupply * 100) / 90;
+        if (balances[buybackShareholderAccount] < requiredAmount)
+            throw;
+        
+        // That's it then, audit and shutdown
+        FundClosed();
+        selfdestruct(shareholder);
+    }
+
     function buybackProcessOrderBook() private {
         // TODO: Process orders within min/max permitted range if we have ether and if so buy back what we can and send to shareholder
     }
-
-    // TODO: Self destruct capability at certain volume of remaining %
-
 }
