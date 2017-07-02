@@ -34,9 +34,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Fired whenever the shareholder for buyback is changed */
     event BuybackShareholderUpdated(address shareholder);
 
-    /* Fired when funds are added to the buyback fund */
-    event BuybackFundIncrease(uint256 amount);
-
     /* Fired when the fund value is updated by an administrator  */
     event FundValueUpdate(uint256 fundValuePerShareUsd, uint256 fundValuePerShareEther, uint256 fundValueTotalUsd, uint256 fundValueTotalEther);
 
@@ -121,14 +118,12 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
 
         // Rather than sending any rounding errors back we hold for our buyback potentials - add audit for this
         buybackFundAmount += remainder;
-        BuybackFundIncrease(remainder);
     }
 
     /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
     function buybackAddFunds() payable adminOnly onlyAfterIco {
         // Audit this and increase the amount we have allocated to buyback
         buybackFundAmount += msg.value;
-        BuybackFundIncrease(msg.value);
     }
 
     /* Sets minimum and maximum amounts for buyback where 0 indicates no limit */
@@ -174,7 +169,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Handle the transaction fee from a sell order being available to the contract. */
     function marketplaceTransactionCostAvailable(uint256 amount) private {
         buybackFundAmount += amount;
-        BuybackFundIncrease(amount);
 
     }
 

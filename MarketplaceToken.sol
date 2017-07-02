@@ -66,18 +66,95 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
         // Audit the creation
         MarketplaceOrderOpened("Sell", nextOrderId, price, quantity);
 
-        // Do we have any remaining to purchase if this was a sell?  If so let's use our buybackProcessOrderBook()
-        Order newOrder = sellOrders[sellOrders.length - 1];
-        if (newOrder.quantityRemaining > 0)
+        // Consolidate this sell order against the books
+        marketplaceConsolidateSell();
+
+        // Do we have any remaining to purchase?  If so let's use our buybackProcessOrderBook()
+        if (sellOrders[sellOrders.length - 1].quantityRemaining > 0)
             buybackProcessOrderBook();
 
         // Determine our return values
-        numberSold = quantity - newOrder.quantityRemaining;
+        numberSold = quantity - sellOrders[sellOrders.length - 1].quantityRemaining;
         id  = nextOrderId;
         nextOrderId++;
 
         // Tidy up the sell / buy orders lists now we've extract the data we care about
         marketplaceTidyArrays();
+    }
+
+    /* Actually take most recent sell order and sell it for highest price possible - this is a separate function due to stack issues in Solidity */
+    function marketplaceConsolidateSell() private {
+        // Do an initial sift to determine the highest price that is within our price range in the stack
+        uint256 highestPrice = 0;
+        bool validPricesExist = false;
+        uint256 buyIndex;
+        Order sellOrder = sellOrders[sellOrders.length - 1];
+        for (buyIndex = 0; buyIndex < buyOrders.length; buyIndex++)
+            if (buyOrders[buyIndex].quantityRemaining > 0 && buyOrders[buyIndex].price >= sellOrder.price && (!validPricesExist || buyOrders[buyIndex].price > highestPrice)) {
+                highestPrice = buyOrders[buyIndex].price;
+                validPricesExist = true;
+            }
+        
+        // As long as other cheap prices still exist, keep looping and closing for this price
+        while (validPricesExist) {
+            // In this loop we do two things - firstly if the order is at loopPrice, we sell up to theirs and our maximum quantity.  Secondly we look for the next-highest price.
+            uint256 loopPrice = highestPrice;
+            validPricesExist = false;
+            for (buyIndex = 0; buyIndex < buyOrders.length; buyIndex++) {
+                // First - if the price of this particular order is at the price we're looking for - we can trade and then re-loop
+                Order buyOrder = buyOrders[buyIndex];
+                if (buyOrder.price == loopPrice && buyOrder.quantityRemaining > 0) {
+                    // Decide how many we want to buy
+                    uint256 numberToBuy = sellOrder.quantityRemaining > buyOrder.quantityRemaining ? buyOrder.quantityRemaining : sellOrder.quantityRemaining;
+                    uint256 costToBuy = numberToBuy * buyOrder.price;
+                    if (costToBuy + buyOrder.amountSpent > buyOrder.amountLoaded)
+                        // If this somehow happens it is a bug but we cannot allow spending money that isn't there
+                        throw;
+
+                    // Update the orders respectively including audit
+                    buyOrders[buyIndex].quantityRemaining -= numberToBuy;
+                    buyOrders[buyIndex].amountSpent += costToBuy;
+                    sellOrder.quantityRemaining -= numberToBuy; // For local count
+                    sellOrders[buyOrders.length - 1].quantityRemaining -= numberToBuy; // For main list
+                    MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrders[buyIndex].quantityRemaining);
+                    MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrder.quantityRemaining);
+
+                    // Transfer tokens from sell order account to buy order account - include a Transfer() here and update the token recipient lists
+                    balances[sellOrder.account] -= numberToBuy;
+                    bool isBuyerNew = balances[buyOrder.account] > 0;
+                    balances[buyOrder.account] += numberToBuy;
+                    if (isBuyerNew)
+                        tokenOwnerAdd(buyOrder.account);
+                    if (balances[sellOrder.account] < 1)
+                        tokenOwnerRemove(sellOrder.account);
+                    Transfer(sellOrder.account, buyOrder.account, numberToBuy);
+
+                    // Send ether to person with sell order
+                    uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
+                    uint256 amountToSeller = costToBuy - transactionCost;
+                    if (!sellOrder.account.send(amountToSeller))
+                        throw;
+                    marketplaceTransactionCostAvailable(transactionCost);
+
+                    // If nothing remaining to sell, we can stop here
+                    if (sellOrder.quantityRemaining < 1)
+                        break;
+
+                    // Loop for next one
+                    continue;
+                }
+
+                // Second - if we're still here the question is will this become the new cheapest price?
+                if (buyOrder.price < loopPrice && buyOrder.quantityRemaining > 0 && buyOrder.price >= sellOrder.price && (!validPricesExist || buyOrder.price > highestPrice)) {
+                    highestPrice = buyOrders[buyIndex].price;
+                    validPricesExist = true;
+                }
+            }
+
+            // If the buy order is closed, we can stop looking
+            if (buyOrder.quantityRemaining < 1)
+                break;
+        }
     }
 
     /* Adds a buy order to the system.  It will follow normal consolidation method. */
@@ -97,6 +174,20 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
         // Audit the creation
         MarketplaceOrderOpened("Buy", nextOrderId, price, quantity);
 
+        // Consolidate any sell orders against this buy order
+        marketplaceConsolidateBuy();        
+
+        // Determine our return values
+        numberPurchased = quantity - buyOrders[buyOrders.length - 1].quantityRemaining;
+        id  = nextOrderId;
+        nextOrderId++;
+
+        // Tidy up the sell / buy orders lists now we've extract the data we care about
+        marketplaceTidyArrays();
+    }
+
+    /* Actually take most recent buy order and buy for lowest price possible - this is a separate function due to stack issues in Solidity */
+    function marketplaceConsolidateBuy() private {
         // Do an initial sift to determine the lowest price that is within our price range in the stack
         uint256 cheapestPrice = 0;
         bool validPricesExist = false;
@@ -107,7 +198,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
                 cheapestPrice = sellOrders[sellIndex].price;
                 validPricesExist = true;
             }
-        
+
         // As long as other cheap prices still exist, keep looping and closing for this price
         while (validPricesExist) {
             // In this loop we do two things - firstly if the order is at loopPrice, we buy up to theirs and our maximum quantity.  Secondly we look for the next-cheapest price.
@@ -169,15 +260,6 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
             if (buyOrder.quantityRemaining < 1)
                 break;
         }
-
-        // Determine our return values
-        Order newOrder = buyOrders[buyOrders.length - 1];
-        numberPurchased = quantity - newOrder.quantityRemaining;
-        id  = nextOrderId;
-        nextOrderId++;
-
-        // Tidy up the sell / buy orders lists now we've extract the data we care about
-        marketplaceTidyArrays();
     }
 
     /* Cancels the specified sell order if it is still valid and owned by the caller. */
