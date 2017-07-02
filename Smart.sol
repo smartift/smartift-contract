@@ -23,10 +23,10 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
     uint256 public fundValueTotalEther;
 
     /* Defines the minimum amount that is considered an "in-range" value for the buyback programme. */
-    uint256 public buybackMinimumPurchaseAmount;
+    uint256 buybackMinimumPurchaseAmount;
     
     /* Defines the maximum amount that is considered an "in-range" value for the buyback programme. */
-    uint256 public buybackMaximumPurchaseAmount;
+    uint256 buybackMaximumPurchaseAmount;
 
     /* Fired whenever the shareholder for buyback is changed */
     event BuybackShareholderUpdated(address shareholder);
