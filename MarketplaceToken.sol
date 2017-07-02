@@ -410,4 +410,31 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
     /* Handle the transaction fee from a sell order being available to the contract. */
     function marketplaceTransactionCostAvailable(uint256 amount) private;
+
+    /* Handle the balance of an ECR account reducing - in our case we need to consolidate any of their sell orders at this point */
+    function ecrReducedBalance(address _from, uint256 _amount) private {
+        // We close the most recent trades first (last in, first sacrificed)
+        uint256 toRemove = _amount;
+        bool wereAnyClosed = false;
+        for (uint256 i = sellOrders.length - 1; i >= 0; i--) {
+            // If this sell order is someone elses, we can ignore it
+            if (sellOrders[i].account != _from)
+                continue;
+
+            // We need to reduce the balance of this sell order by appropriate amount
+            if (toRemove > sellOrders[i].quantityRemaining) {
+                toRemove -= sellOrders[i].quantityRemaining;
+                sellOrders[i].quantityRemaining = 0;
+                wereAnyClosed = true;
+            } else {
+                sellOrders[i].quantityRemaining -= toRemove;
+                MarketplaceOrderUpdated("Sell", sellOrders[i].id, sellOrders[i].price, sellOrders[i].quantityRemaining);
+                break;
+            }
+        }
+
+        // Consolidate any arrays if we closed any trades
+        if (wereAnyClosed)
+            marketplaceTidyArrays();
+    }
 }

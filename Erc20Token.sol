@@ -51,6 +51,7 @@ contract Erc20Token {
             if (balances[_from] < 1)
                 tokenOwnerRemove(_from);
             Transfer(_from, _to, _amount);
+            ecrReducedBalance(_from, _amount);
             return true;
         }
         return false;
@@ -98,6 +99,7 @@ contract Erc20Token {
 
         /* Fire notification event */
         Transfer(msg.sender, _to, _amount);
+        ecrReducedBalance(msg.sender, _amount);
         success = true;
     }
 
@@ -139,4 +141,6 @@ contract Erc20Token {
         allTokenHolders.length--;
     }
 
+
+    function ecrReducedBalance(address _from, uint256 _amount) private;
 }
