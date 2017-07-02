@@ -66,17 +66,17 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
 
         // Increase their new balance if trhey actually purchased any
         if (tokensPurchased > 0) {
+            bool isNew = balances[msg.sender] < 1;
             balances[msg.sender] += tokensPurchased;
-            _totalSupply += tokensPurchased;
+            totalSupplyAmount += tokensPurchased;
+            if (isNew)
+                tokenOwnerAdd(msg.sender);
+            Transfer(0, msg.sender, tokensPurchased);
         }
 
         // Send change back to recipient
         if (change > 0 && !msg.sender.send(change))
-                throw;
-
-        // Fire transfer event
-        if (tokensPurchased > 0)
-            Transfer(0, msg.sender, tokensPurchased);
+            throw;
     }
 
     /* Update our shareholder account that we send any buyback shares to for holding */
@@ -89,7 +89,7 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
        transaction fees */
     function dividendPay() payable adminOnly onlyAfterIco {
         // Determine how much coin supply we have minus that held by shareholder
-        uint256 validSupply = _totalSupply - balances[buybackShareholderAccount];
+        uint256 validSupply = totalSupplyAmount - balances[buybackShareholderAccount];
 
         // Work out from this a dividend per share
         uint256 paymentPerShare = msg.value / validSupply;
@@ -120,8 +120,8 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
         // Store values
         fundValueTotalUsd = _usdTotalFund;
         fundValueTotalEther = _etherTotalFund;
-        fundValuePerShareUsd = _usdTotalFund / _totalSupply;
-        fundValuePerShareEther = _etherTotalFund / _totalSupply;
+        fundValuePerShareUsd = _usdTotalFund / totalSupplyAmount;
+        fundValuePerShareEther = _etherTotalFund / totalSupplyAmount;
 
         // Audit this
         FundValueUpdate(fundValuePerShareUsd, fundValuePerShareEther, fundValueTotalUsd, fundValueTotalEther);
@@ -131,7 +131,7 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
        the contract. */
     function closeFund() adminOnly onlyAfterIco {
         // Ensure the shareholder owns required amount of fund
-        uint256 requiredAmount = (_totalSupply * 100) / 90;
+        uint256 requiredAmount = (totalSupplyAmount * 100) / 90;
         if (balances[buybackShareholderAccount] < requiredAmount)
             throw;
         
@@ -142,5 +142,7 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
 
     function buybackProcessOrderBook() private {
         // TODO: Process orders within min/max permitted range if we have ether and if so buy back what we can and send to shareholder
+        
+        // Don't forget to fire Transfer() and update owner list
     }
 }

@@ -8,6 +8,9 @@ contract Erc20Token {
     /* Map between users and their approval addresses and amounts */
     mapping(address => mapping (address => uint256)) allowed;
 
+    /* List of all token holders */
+    address[] allTokenHolders;
+
     /* The name of the contract */
     string public name;
 
@@ -18,7 +21,7 @@ contract Erc20Token {
     uint8 public decimals;
 
     /* Defines the current supply of the token in its own units */
-    uint256 _totalSupply = 0;
+    uint256 totalSupplyAmount = 0;
 
     /* Our transfer event to fire whenever we shift SMRT around */
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -39,9 +42,14 @@ contract Erc20Token {
      // deliberately authorized the sender of the message via some mechanism.
      function transferFrom(address _from, address _to, uint256 _amount) returns (bool success) {
         if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to] + _amount > balances[_to]) {
+            bool isNew = balances[_to] < 1;
             balances[_from] -= _amount;
             allowed[_from][msg.sender] -= _amount;
             balances[_to] += _amount;
+            if (isNew)
+                tokenOwnerAdd(_to);
+            if (balances[_from] < 1)
+                tokenOwnerRemove(_from);
             Transfer(_from, _to, _amount);
             return true;
         }
@@ -59,26 +67,76 @@ contract Erc20Token {
     function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
         return allowed[_owner][_spender];
     }
-    function totalSupply() constant returns (uint256 totalSupply) {
-        totalSupply = _totalSupply;
+
+    function totalSupply() constant returns (uint256 _totalSupply) {
+        totalSupplyAmount = _totalSupply;
     }
 
     // What is the balance of a particular account?
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
     }
+
     // Transfer the balance from owner's account to another account
     function transfer(address _to, uint256 _amount) returns (bool success) {
         /* Check if sender has balance and for overflows */
         if (balances[msg.sender] < _amount || balances[_to] + _amount < balances[_to])
             throw;
 
+        // Do a check to see if they are new, if so we'll want to add it to our array
+        bool isRecipientNew = balances[_to] < 1;
+
         /* Add and subtract new balances */
         balances[msg.sender] -= _amount;
         balances[_to] += _amount;
+
+        // Consolidate arrays if they are new or if sender now has empty balance
+        if (isRecipientNew)
+            tokenOwnerAdd(_to);
+        if (balances[msg.sender] < 1)
+            tokenOwnerRemove(msg.sender);
 
         /* Fire notification event */
         Transfer(msg.sender, _to, _amount);
         success = true;
     }
+
+    /* If the specified address is not in our owner list, add them */
+    function tokenOwnerAdd(address _addr) internal {
+        // First check if they already exist
+        uint256 tokenHolderCount = allTokenHolders.length;
+        for (uint256 i = 0; i < tokenHolderCount; i++)
+            if (allTokenHolders[i] == _addr)
+                // Already found so we can abort now
+                return;
+        
+        // They don't seem to exist, so let's add them
+        allTokenHolders.length++;
+        allTokenHolders[allTokenHolders.length - 1] = _addr;
+    }
+
+    /* If the specified address is in our owner list, remove them */
+    function tokenOwnerRemove(address _addr) internal {
+        // Find out where in our array they are
+        uint256 tokenHolderCount = allTokenHolders.length;
+        uint256 foundIndex = 0;
+        bool found = false;
+        uint256 i;
+        for (i = 0; i < tokenHolderCount; i++)
+            if (allTokenHolders[i] == _addr) {
+                foundIndex = i;
+                found = true;
+                break;
+            }
+        
+        // If we didn't find them just return
+        if (!found)
+            return;
+        
+        // We now need to shuffle down the array
+        for (i = foundIndex; i < tokenHolderCount - 1; i++)
+            allTokenHolders[i] = allTokenHolders[i + 1];
+        allTokenHolders.length--;
+    }
+
 }
