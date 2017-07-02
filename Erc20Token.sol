@@ -35,11 +35,11 @@ contract Erc20Token {
         decimals = _decimals;
     }
 
-     // Send _value amount of tokens from address _from to address _to
-     // The transferFrom method is used for a withdraw workflow, allowing contracts to send
-     // tokens on your behalf, for example to "deposit" to a contract address and/or to charge
-     // fees in sub-currencies; the command should fail unless the _from account has
-     // deliberately authorized the sender of the message via some mechanism.
+     /* Send _value amount of tokens from address _from to address _to
+      The transferFrom method is used for a withdraw workflow, allowing contracts to send
+      tokens on your behalf, for example to "deposit" to a contract address and/or to charge
+      fees in sub-currencies; the command should fail unless the _from account has
+      deliberately authorized the sender of the message via some mechanism. */
      function transferFrom(address _from, address _to, uint256 _amount) returns (bool success) {
         if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to] + _amount > balances[_to]) {
             bool isNew = balances[_to] < 1;
@@ -57,8 +57,8 @@ contract Erc20Token {
         return false;
     }
  
-    // Allow _spender to withdraw from your account, multiple times, up to the _value amount.
-    // If this function is called again it overwrites the current allowance with _value.
+    /* Allow _spender to withdraw from your account, multiple times, up to the _value amount.
+     If this function is called again it overwrites the current allowance with _value. */
     function approve(address _spender, uint256 _amount) returns (bool success) {
         allowed[msg.sender][_spender] = _amount;
         Approval(msg.sender, _spender, _amount);
@@ -73,25 +73,25 @@ contract Erc20Token {
         totalSupplyAmount = _totalSupply;
     }
 
-    // What is the balance of a particular account?
+    /* What is the balance of a particular account? */
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
     }
 
-    // Transfer the balance from owner's account to another account
+    /* Transfer the balance from owner's account to another account */
     function transfer(address _to, uint256 _amount) returns (bool success) {
         /* Check if sender has balance and for overflows */
         if (balances[msg.sender] < _amount || balances[_to] + _amount < balances[_to])
             throw;
 
-        // Do a check to see if they are new, if so we'll want to add it to our array
+        /* Do a check to see if they are new, if so we'll want to add it to our array */
         bool isRecipientNew = balances[_to] < 1;
 
         /* Add and subtract new balances */
         balances[msg.sender] -= _amount;
         balances[_to] += _amount;
 
-        // Consolidate arrays if they are new or if sender now has empty balance
+        /* Consolidate arrays if they are new or if sender now has empty balance */
         if (isRecipientNew)
             tokenOwnerAdd(_to);
         if (balances[msg.sender] < 1)
@@ -105,21 +105,21 @@ contract Erc20Token {
 
     /* If the specified address is not in our owner list, add them */
     function tokenOwnerAdd(address _addr) internal {
-        // First check if they already exist
+        /* First check if they already exist */
         uint256 tokenHolderCount = allTokenHolders.length;
         for (uint256 i = 0; i < tokenHolderCount; i++)
             if (allTokenHolders[i] == _addr)
-                // Already found so we can abort now
+                /* Already found so we can abort now */
                 return;
         
-        // They don't seem to exist, so let's add them
+        /* They don't seem to exist, so let's add them */
         allTokenHolders.length++;
         allTokenHolders[allTokenHolders.length - 1] = _addr;
     }
 
     /* If the specified address is in our owner list, remove them */
     function tokenOwnerRemove(address _addr) internal {
-        // Find out where in our array they are
+        /* Find out where in our array they are */
         uint256 tokenHolderCount = allTokenHolders.length;
         uint256 foundIndex = 0;
         bool found = false;
@@ -131,11 +131,11 @@ contract Erc20Token {
                 break;
             }
         
-        // If we didn't find them just return
+        /* If we didn't find them just return */
         if (!found)
             return;
         
-        // We now need to shuffle down the array
+        /* We now need to shuffle down the array */
         for (i = foundIndex; i < tokenHolderCount - 1; i++)
             allTokenHolders[i] = allTokenHolders[i + 1];
         allTokenHolders.length--;
