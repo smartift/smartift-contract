@@ -129,6 +129,9 @@ contract MarketplaceToken is IcoPhasedContract {
         uint256 shuffleIndex;
         for (mainLoopIndex = 0; mainLoopIndex < buyOrders.length; mainLoopIndex++) {
             if (buyOrders[mainLoopIndex].quantityRemaining < 1) {
+                // First lets mark this as closed in the audit
+                MarketplaceOrderClosed("Buy", buyOrders[mainLoopIndex].id);
+
                 // We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book
                 for (shuffleIndex = mainLoopIndex; shuffleIndex < buyOrders.length - 1; shuffleIndex++)
                     buyOrders[shuffleIndex] = buyOrders[shuffleIndex + 1];
@@ -137,6 +140,9 @@ contract MarketplaceToken is IcoPhasedContract {
         }
         for (mainLoopIndex = 0; mainLoopIndex < sellOrders.length; mainLoopIndex++) {
             if (sellOrders[mainLoopIndex].quantityRemaining < 1) {
+                // First lets mark this as closed in the audit
+                MarketplaceOrderClosed("Sell", sellOrders[mainLoopIndex].id);
+
                 // We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book
                 for (shuffleIndex = mainLoopIndex; shuffleIndex < sellOrders.length - 1; shuffleIndex++)
                     sellOrders[shuffleIndex] = sellOrders[shuffleIndex + 1];
