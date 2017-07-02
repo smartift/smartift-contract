@@ -139,7 +139,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     }
 
     /* Defines the current value of the funds assets in USD and ETHER */
-    function fundValueSet(uint256 _usdTotalFund, uint256 _etherTotalFund) adminOnly onlyAfterIco {
+    function fundValueSet(uint256 _usdTotalFund, uint256 _etherTotalFund) adminOnly {
         // Store values
         fundValueTotalUsd = _usdTotalFund;
         fundValueTotalEther = _etherTotalFund;
@@ -169,6 +169,13 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         // Don't forget to fire Transfer() and update owner list
 
         // Only use buybackFundAmount
+    }
+
+    /* Handle the transaction fee from a sell order being available to the contract. */
+    function marketplaceTransactionCostAvailable(uint256 amount) private {
+        buybackFundAmount += amount;
+        BuybackFundIncrease(amount);
+
     }
 
     // TODO: On transfer close any sell orders on that account or reduce #

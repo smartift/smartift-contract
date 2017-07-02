@@ -144,8 +144,11 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
                     Transfer(sellOrder.account, buyOrder.account, numberToBuy);
 
                     // Send ether to person with sell order
-                    if (!sellOrder.account.send(costToBuy))
+                    uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
+                    uint256 amountToSeller = costToBuy - transactionCost;
+                    if (!sellOrder.account.send(amountToSeller))
                         throw;
+                    marketplaceTransactionCostAvailable(transactionCost);
 
                     // If nothing remaining to buy, we can stop here
                     if (buyOrder.quantityRemaining < 1)
@@ -322,4 +325,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
     }
 
     function buybackProcessOrderBook() private;
+
+    /* Handle the transaction fee from a sell order being available to the contract. */
+    function marketplaceTransactionCostAvailable(uint256 amount) private;
 }
