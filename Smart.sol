@@ -137,7 +137,7 @@ contract SmartInvestmentFund is Erc20Token("Smart Investment Fund", "SIF", 0), I
         
         // That's it then, audit and shutdown
         FundClosed();
-        selfdestruct(shareholder);
+        selfdestruct(buybackShareholderAccount);
     }
 
     function buybackProcessOrderBook() private {
