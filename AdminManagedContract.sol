@@ -5,10 +5,10 @@ contract AdminManagedContract {
     mapping (address => bool) adminUsers;
 
     /* Fired whenever an admin is added to the contract. */
-    event AuditAdminAdded(address admin);
+    event AdminAdded(address admin);
 
     /* Fired whenever an admin is removed from the contract. */
-    event AuditAdminRemoved(address admin);
+    event AdminRemoved(address admin);
 
     function AdminManagedContract() {
     }
@@ -20,7 +20,7 @@ contract AdminManagedContract {
 
     function adminAdd(address adminAddress) adminOnly {
         adminUsers[adminAddress] = true;
-        AuditAdminAdded(msg.sender);
+        AdminAdded(msg.sender);
     }
 
 
@@ -31,5 +31,6 @@ contract AdminManagedContract {
 
         // Remove this admin user
         adminUsers[adminAddress] = false;
+        AdminRemoved(adminAddress);
     }
 }
