@@ -9,7 +9,6 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
         uint256 quantityRemaining;
         uint256 quantityStart;
         address account;
-        uint256 timestamp;
         uint256 amountLoaded;
         uint256 amountSpent;
     }
@@ -61,7 +60,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
         // Add the order
         sellOrders.length++;
-        sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp, 0, 0);
+        sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, 0, 0);
 
         // Audit the creation
         MarketplaceOrderOpened("Sell", nextOrderId, price, quantity);
@@ -71,7 +70,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
         // Do we have any remaining to purchase?  If so let's use our buybackProcessOrderBook()
         if (sellOrders[sellOrders.length - 1].quantityRemaining > 0)
-            buybackProcessOrderBook();
+            marketplaceUnfulfilledSellOrder(sellOrders.length - 1);
 
         // Determine our return values
         numberSold = quantity - sellOrders[sellOrders.length - 1].quantityRemaining;
@@ -114,8 +113,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
                     // Update the orders respectively including audit
                     buyOrders[buyIndex].quantityRemaining -= numberToBuy;
                     buyOrders[buyIndex].amountSpent += costToBuy;
-                    sellOrder.quantityRemaining -= numberToBuy; // For local count
-                    sellOrders[buyOrders.length - 1].quantityRemaining -= numberToBuy; // For main list
+                    sellOrder.quantityRemaining -= numberToBuy;
                     MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrders[buyIndex].quantityRemaining);
                     MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrder.quantityRemaining);
 
@@ -169,7 +167,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
         // Create the order
         buyOrders.length++;
-        buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, block.timestamp, msg.value, 0);
+        buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, msg.value, 0);
 
         // Audit the creation
         MarketplaceOrderOpened("Buy", nextOrderId, price, quantity);
@@ -217,10 +215,8 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
                     // Update the orders respectively including audit
                     sellOrders[sellIndex].quantityRemaining -= numberToBuy;
-                    buyOrder.quantityRemaining -= numberToBuy; // For local count
+                    buyOrder.quantityRemaining -= numberToBuy;
                     buyOrder.amountSpent += costToBuy;
-                    buyOrders[buyOrders.length - 1].quantityRemaining -= numberToBuy; // For main list
-                    buyOrders[buyOrders.length - 1].amountSpent += costToBuy;
                     MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrder.quantityRemaining);
                     MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellIndex].quantityRemaining);
 
@@ -406,7 +402,8 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
             throw;
     }
 
-    function buybackProcessOrderBook() private;
+    /* Indicates a new buy order could not be fulfilled by the marketplace directly giving a chance for descendent classes to do something with it. */
+    function marketplaceUnfulfilledSellOrder(uint256 orderIndex) private;
 
     /* Handle the transaction fee from a sell order being available to the contract. */
     function marketplaceTransactionCostAvailable(uint256 amount) private;

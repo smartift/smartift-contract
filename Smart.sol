@@ -158,12 +158,47 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         selfdestruct(buybackShareholderAccount);
     }
 
-    function buybackProcessOrderBook() private {
-        // TODO: Process orders within min/max permitted range if we have ether and if so buy back what we can and send to shareholder
-        
-        // Don't forget to fire Transfer() and update owner list
+    /* When the marketplace could not fulfil a new sell order we have the chance to do so here using the buyback fund with as much as is available */
+    function marketplaceUnfulfilledSellOrder(uint256 sellOrderIndex) private {
+        // Skip if no buyback fund left
+        if (buybackFundAmount < 1)
+            return;
 
-        // Only use buybackFundAmount
+        // Check this sell orders price - is it within our buy/sell range?
+        Order sellOrder = sellOrders[sellOrderIndex];
+        if (buybackMinimumPurchaseAmount > 0 && sellOrder.price < buybackMinimumPurchaseAmount)
+            throw;
+        if (buybackMaximumPurchaseAmount > 0 && sellOrder.price > buybackMaximumPurchaseAmount)
+            throw;
+
+        // Can we afford any shares at this price?
+        uint256 amountToPurchase = buybackFundAmount / sellOrder.price;
+        if (amountToPurchase < 1)
+            return;
+        if (amountToPurchase > sellOrder.quantityRemaining)
+            amountToPurchase = sellOrder.quantityRemaining;
+        
+        // Great we can buy some - so let's do it!
+        if (balances[buybackShareholderAccount] == 0)
+            tokenOwnerAdd(buybackShareholderAccount);
+        balances[buybackShareholderAccount] += amountToPurchase;
+        balances[sellOrder.account] -= amountToPurchase;
+        if (balances[sellOrder.account] < 1)
+            tokenOwnerRemove(sellOrder.account);
+        Transfer(sellOrder.account, buybackShareholderAccount, amountToPurchase);
+
+        // Now adjust their order
+        sellOrders[sellOrderIndex].quantityRemaining -= amountToPurchase;
+        MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellOrderIndex].quantityRemaining);
+
+        // Finally lets send some ether to the seller minus fees
+        uint256 costToBuy = amountToPurchase * sellOrder.price;
+        uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
+        uint256 amountToSeller = costToBuy - transactionCost;
+        if (!sellOrder.account.send(amountToSeller))
+            throw;
+        buybackFundAmount -= amountToSeller;
+        marketplaceTransactionCostAvailable(transactionCost);
     }
 
     /* Handle the transaction fee from a sell order being available to the contract. */
@@ -171,7 +206,4 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         buybackFundAmount += amount;
 
     }
-
-    // TODO: On transfer close any sell orders on that account or reduce #
-    // TODO: Check if blah = array[index]; blah.val++; actuall updateds iun array[index] - some changes in marketplace around this
 }
