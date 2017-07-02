@@ -28,6 +28,9 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Defines the maximum amount that is considered an "in-range" value for the buyback programme. */
     uint256 buybackMaximumPurchaseAmount;
 
+    /* Defines the current amount available in the buyback fund. */
+    uint256 public buybackFundAmount;
+
     /* Fired whenever the shareholder for buyback is changed */
     event BuybackShareholderUpdated(address shareholder);
 
@@ -117,12 +120,14 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         DividendPayment(paymentPerShare, totalPaidOut);
 
         // Rather than sending any rounding errors back we hold for our buyback potentials - add audit for this
+        buybackFundAmount += remainder;
         BuybackFundIncrease(remainder);
     }
 
     /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
     function buybackAddFunds() payable adminOnly onlyAfterIco {
-        // Just audit this
+        // Audit this and increase the amount we have allocated to buyback
+        buybackFundAmount += msg.value;
         BuybackFundIncrease(msg.value);
     }
 
@@ -162,11 +167,10 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         // TODO: Process orders within min/max permitted range if we have ether and if so buy back what we can and send to shareholder
         
         // Don't forget to fire Transfer() and update owner list
+
+        // Only use buybackFundAmount
     }
 
-
-
-    // TODO: Buyback fund not all ether - just that marked as for buyback fund (dividend remainder + sent expressly)
     // TODO: Admin methods to cancel all open trades
     // TODO: On transfer close any sell orders on that account or reduce #
     // TODO: Check if blah = array[index]; blah.val++; actuall updateds iun array[index] - some changes in marketplace around this
