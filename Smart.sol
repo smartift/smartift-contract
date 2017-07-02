@@ -44,7 +44,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     event DividendPayment(uint256 etherPerShare, uint256 totalPaidOut);
 
     /* Initializes contract and adds creator as an admin user */
-    function SmartTradingFund() {
+    function SmartInvestmentFund() {
         /* Set the first admin to be the person creating the contract */
         adminUsers[msg.sender] = true;
         AdminAdded(msg.sender);
