@@ -2,7 +2,7 @@ pragma solidity ^0.4.11;
 import "IcoPhasedContract.sol";
 import "Erc20Token.sol";
 
-contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fund", "SIF", 0) {
+contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fund", "SIFT", 0) {
     struct Order {
         uint256 id;
         uint256 price;
