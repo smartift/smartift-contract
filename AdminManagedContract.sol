@@ -25,11 +25,11 @@ contract AdminManagedContract {
 
 
     function adminRemove(address adminAddress) adminOnly {
-        // Don't allow removal of self
+        /* Don't allow removal of self */
         if (adminAddress == msg.sender)
             throw;
 
-        // Remove this admin user
+        /* Remove this admin user */
         adminUsers[adminAddress] = false;
         AdminRemoved(adminAddress);
     }
