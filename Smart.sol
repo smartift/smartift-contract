@@ -195,4 +195,14 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     function marketplaceTransactionCostAvailable(uint256 amount) private {
         buybackFundAmount += amount;
     }
+
+    /* Bugs
+        Can sell more than you own (when creating sell order - no checks happen
+        Prefix all admin methods with adminOnly
+        Buy/BuyCancel failing
+        Buyback fund overlaps?
+        Dividends are being sent to buybackShareholderAccount
+        Doesnt send out wei when close ICO called
+        Can't close fund - total supply = 0?
+    */
 }
