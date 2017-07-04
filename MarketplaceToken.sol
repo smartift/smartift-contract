@@ -356,7 +356,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
 
     /* Allows an admin to close all open orders and close the entire market place.  Thsi can intentionally happen before ICO is ended - the idea here is to stop any abuse of marketplace or
        to potentially close the marketplace if a bug is somehow found at a future date. */
-    function marketplaceCloseAll(string details) adminOnly {
+    function adminMmarketplaceCloseAll(string details) adminOnly {
         /* Sell orders are pretty simple - just audit their closure */
         uint256 i;
         for (i = 0; i < sellOrders.length; i++)
@@ -382,7 +382,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
     }
 
     /* Re-opens a closed marketpalce. */
-    function marketplaceOpen() adminOnly {
+    function adminMarketplaceOpen() adminOnly {
         /* We can only work on closed marketplace */
         if (!isClosed)
             throw;
@@ -409,7 +409,7 @@ contract MarketplaceToken is IcoPhasedContract, Erc20Token("Smart Investment Fun
     function marketplaceTransactionCostAvailable(uint256 amount) private;
 
     /* Handle the balance of an ECR account reducing - in our case we need to consolidate any of their sell orders at this point */
-    function ecrReducedBalance(address _from, uint256 _amount) private {
+    function ercReducedBalance(address _from, uint256 _amount) private {
         /* We close the most recent trades first (last in, first sacrificed) */
         uint256 toRemove = _amount;
         bool wereAnyClosed = false;
