@@ -4,14 +4,33 @@ import "IcoPhasedContract.sol";
 import "MarketplaceToken.sol";
 
 contract SmartInvestmentFund is MarketplaceToken(5) {
+    /* Represents what SIFT administration report the fund as being worth at a snapshot moment in time. */
+    struct FundValueRepresentation {
+        uint256 usdValue;
+        uint256 etherEquivalent;
+        uint256 suppliedTimestamp;
+        uint256 blockTimestamp;
+    }
+
+    /* Represents a published balance of a particular account at a moment in time. */
+    struct FundAccountBalanceRepresentation {
+        string accountType; /* Bitcoin, USD, etc. */
+        string accountIssuer; /* Kraken, Bank of America, etc. */
+        uint256 balance; /* Rounded to appropriate for balance - i.e. full USD or full BTC */
+        string accountReference; /* Could be crypto address, bank account number, etc. */
+        string validationUrl; /* Some validation URL - i.e. base64 encoded notary */
+        uint256 suppliedTimestamp;
+        uint256 blockTimestamp;
+    }
+
+    /* An array defining all the fund values as supplied by SIFT over the time of the contract. */
+    FundValueRepresentation[] public fundValues;
+    
+    /* An array defining the history of account balances over time. */
+    FundAccountBalanceRepresentation[] public fundAccountBalances;
+
     /* Sets the shareholder account for auto buyback */
     address buybackShareholderAccount;
-
-    /* Defines how much the fund is worth in total in USD based on last reported price. */
-    uint256 public fundValueTotalUsd;
-
-    /* Defines how much the fund is worth in total in ether based on last reported price. */
-    uint256 public fundValueTotalEther;
 
     /* Defines the minimum amount that is considered an "in-range" value for the buyback programme. */
     uint256 buybackMinimumPurchaseAmount;
@@ -22,11 +41,14 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Defines the current amount available in the buyback fund. */
     uint256 public buybackFundAmount;
 
-    /* Fired whenever the shareholder for buyback is changed */
+    /* Fired whenever the shareholder for buyback is changed. */
     event BuybackShareholderUpdated(address shareholder);
 
-    /* Fired when the fund value is updated by an administrator  */
-    event FundValueUpdate(uint256 fundValueTotalUsd, uint256 fundValueTotalEther);
+    /* Fired when the fund value is updated by an administrator. */
+    event FundValue(uint256 usdValue, uint256 etherEquivalent, uint256 suppliedTimestamp, uint256 blockTimestamp);
+
+    /* Fired when an account balance is being supplied in some confirmed form for future validation on the blockchain. */
+    event FundAccountBalance(string accountType, string accountIssuer, uint256 balance, string accountReference, string validationUrl, uint256 timestamp, uint256 blockTimestamp);
 
     /* Fired when the fund is eventually closed. */
     event FundClosed();
@@ -45,10 +67,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         /* Set the shareholder to initially be the contract creator */
         buybackShareholderAccount = msg.sender;
         BuybackShareholderUpdated(msg.sender);
-
-        /* Setup other values */
-        fundValueTotalEther = 0;
-        fundValueTotalUsd = 0;
     }
 
     /* Update our shareholder account that we send any buyback shares to for holding */
@@ -103,14 +121,24 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     }
 
     /* Defines the current value of the funds assets in USD and ETHER */
-    function adminFundValueSet(uint256 _usdTotalFund, uint256 _etherTotalFund) adminOnly {
+    function adminFundValuePublish(uint256 _usdTotalFund, uint256 _etherTotalFund, uint256 _definedTimestamp) adminOnly onlyAfterIco {
         /* Store values */
-        fundValueTotalUsd = _usdTotalFund;
-        fundValueTotalEther = _etherTotalFund;
+        fundValues.length++;
+        fundValues[fundValues.length - 1] = FundValueRepresentation(_usdTotalFund, _etherTotalFund, _definedTimestamp, now);
 
         /* Audit this */
-        FundValueUpdate(fundValueTotalUsd, fundValueTotalEther);
+        FundValue(_usdTotalFund, _etherTotalFund, _definedTimestamp, now);
     }
+
+    function adminFundAccountBalancePublish(string accountType, string accountIssuer, uint256 balance, string accountReference, string validationUrl, uint256 timestamp) adminOnly onlyAfterIco {
+        /* Store values */
+        fundAccountBalances.length++;
+        fundAccountBalances[fundAccountBalances.length - 1] = FundAccountBalanceRepresentation(accountType, accountIssuer, balance, accountReference, validationUrl, timestamp, now);
+
+        /* Audit this */
+        FundAccountBalance(accountType, accountIssuer, balance, accountReference, validationUrl, timestamp, now);
+    }
+
 
     /* Closes the fund down - this can only happen if the fund has bought back 90% of the shareholding and is designed to be supported by payout of ether matching value to remaining shareholders outside of
        the contract. */
