@@ -42,6 +42,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         /* Set the first admin to be the person creating the contract */
         adminUsers[msg.sender] = true;
         AdminAdded(msg.sender);
+        adminAudit[adminAudit.length - 1] = msg.sender;
 
         /* Set the shareholder to initially be the contract creator */
         buybackShareholderAccount = msg.sender;
