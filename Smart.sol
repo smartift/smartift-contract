@@ -7,9 +7,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     /* Sets the shareholder account for auto buyback */
     address buybackShareholderAccount;
 
-    /* Defines the sale price during ICO */
-    uint256 constant icoUnitPrice = 10 finney;
-
     /* Defines how much the fund is worth in total in USD based on last reported price. */
     uint256 public fundValueTotalUsd;
 
@@ -42,6 +39,7 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         /* Set the first admin to be the person creating the contract */
         adminUsers[msg.sender] = true;
         AdminAdded(msg.sender);
+        adminAudit.length++;
         adminAudit[adminAudit.length - 1] = msg.sender;
 
         /* Set the shareholder to initially be the contract creator */
@@ -51,28 +49,6 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         /* Setup other values */
         fundValueTotalEther = 0;
         fundValueTotalUsd = 0;
-    }
-
-    /* Handle receiving ether in ICO phase - we work out how much the user has bought, allocate a suitable balance and send their change */
-    function () onlyDuringIco payable {
-        /* Determine how much they've actually purhcased and any ether change */
-        uint256 tokensPurchased = msg.value / icoUnitPrice;
-        uint256 purchaseTotalPrice = tokensPurchased * icoUnitPrice;
-        uint256 change = msg.value - purchaseTotalPrice;
-
-        /* Increase their new balance if trhey actually purchased any */
-        if (tokensPurchased > 0) {
-            bool isNew = balances[msg.sender] < 1;
-            balances[msg.sender] += tokensPurchased;
-            totalSupplyAmount += tokensPurchased;
-            if (isNew)
-                tokenOwnerAdd(msg.sender);
-            Transfer(0, msg.sender, tokensPurchased);
-        }
-
-        /* Send change back to recipient */
-        if (change > 0 && !msg.sender.send(change))
-            throw;
     }
 
     /* Update our shareholder account that we send any buyback shares to for holding */
