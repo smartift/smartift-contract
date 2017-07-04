@@ -3,7 +3,7 @@ import "AdminManagedContract.sol";
 
 contract IcoPhasedContract is AdminManagedContract {
     /* Defines whether or not we are in the ICO phase */
-    bool icoPhase = true;
+    bool public icoPhase = true;
 
     /* Defines our event fired when the ICO is closed */
     event IcoClosed();
@@ -20,7 +20,7 @@ contract IcoPhasedContract is AdminManagedContract {
     }
 
     /* Close the ICO phase and transition to execution phase */
-    function closeIco() adminOnly onlyDuringIco {
+    function adminIcoClose() adminOnly onlyDuringIco {
         icoPhase = false;
         IcoClosed();
     }

@@ -18,13 +18,13 @@ contract AdminManagedContract {
         _;
     }
 
-    function adminAdd(address adminAddress) adminOnly {
+    function adminAdminAdd(address adminAddress) adminOnly {
         adminUsers[adminAddress] = true;
         AdminAdded(msg.sender);
     }
 
 
-    function adminRemove(address adminAddress) adminOnly {
+    function adminAdminRemove(address adminAddress) adminOnly {
         /* Don't allow removal of self */
         if (adminAddress == msg.sender)
             throw;
