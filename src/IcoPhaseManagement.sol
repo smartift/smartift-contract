@@ -56,7 +56,7 @@ contract IcoPhaseManagement {
 
     /* Set the SIFT contract address as a one-time operation.  This happens after all the contracts are created and no
        other functionality can be used until this is set. */
-    function setSiftContractAddress(address _siftContractAddress) {
+    function setSiftContractAddress(address _siftContractAddress) adminOnly {
         /* This can only happen once in the lifetime of this contract */
         if (siftContractDefined)
             throw;
