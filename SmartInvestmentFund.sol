@@ -69,6 +69,11 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
         BuybackShareholderUpdated(msg.sender);
     }
 
+    /* Gets the contract version for UI validation */
+    function siftContractVersion() constant returns(string) {
+        return "SIFT 201707051557";
+    }
+
     /* Update our shareholder account that we send any buyback shares to for holding */
     function adminBuybackShareholderSet(address shareholder) adminOnly {
         buybackShareholderAccount = shareholder;
@@ -202,11 +207,13 @@ contract SmartInvestmentFund is MarketplaceToken(5) {
     }
 
     /* Bugs
+        Total supply reporting 0?
+        Can't close fund - total supply = 0?
         Doesnt send out wei when close ICO called
         Can sell more than you own (when creating sell order - no checks happen)
         Buyback fund overlaps from 0 to really big number?
-        Can't close fund - total supply = 0?
         Buy/BuyCancel failing
         Dividends are being sent to buybackShareholderAccount
+        Too big - need to cut this down
     */
 }

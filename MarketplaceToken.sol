@@ -356,7 +356,7 @@ contract MarketplaceToken is IcoPhasedContract {
 
     /* Allows an admin to close all open orders and close the entire market place.  Thsi can intentionally happen before ICO is ended - the idea here is to stop any abuse of marketplace or
        to potentially close the marketplace if a bug is somehow found at a future date. */
-    function adminMmarketplaceCloseAll(string details) adminOnly {
+    function adminMarketplaceCloseAll(string details) adminOnly {
         /* Sell orders are pretty simple - just audit their closure */
         uint256 i;
         for (i = 0; i < sellOrders.length; i++)
