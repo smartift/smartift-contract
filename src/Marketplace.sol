@@ -527,7 +527,7 @@ contract Marketplace {
     function notifyBalanceReduced(address _from, uint256 _amount) contractInitialised {
         // Ensure we were called from SIFT itself
         if (msg.sender != siftContractAddress)
-            return;
+            throw;
 
         /* We close the most recent trades first (last in, first sacrificed) */
         uint256 toRemove = _amount;
