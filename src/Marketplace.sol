@@ -125,6 +125,16 @@ contract Marketplace {
         /* If we're closed, throw */
         if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
+        
+        // If we're trying to sell more than we have available we should not allow it - first we need to see how much they've already got for sale
+        uint256 forSale = 0;
+        for (uint256 i = 0; i < sellOrders.length; i++) {
+            if (sellOrders[i].account == msg.sender)
+                forSale += sellOrders[i].quantityRemaining;
+        }
+        forSale += _quantity;
+        if (forSale > smartInvestmentFundToken.balanceOf(msg.sender))
+            throw;
 
         /* Add the order */
         sellOrders.length++;
