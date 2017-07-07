@@ -77,7 +77,7 @@ contract Erc20Token {
 
     /* Gets the total supply available of this token */
     function totalSupply() constant returns (uint256 _totalSupply) {
-        totalSupplyAmount = _totalSupply;
+        _totalSupply = totalSupplyAmount;
     }
 
     /* Gets the balance of a specified account */
