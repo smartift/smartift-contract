@@ -32,6 +32,9 @@ contract DividendManager {
     /* Makes a dividend payment - we send it to all coin holders but we exclude any coins held in the shareholder account as the equivalent dividend is excluded prior to paying in to reduce overall
        transaction fees */
     function () payable {
+        if (siftContract.isClosed())
+            throw;
+
         /* Determine how much coin supply we have minus that held by shareholder */
         uint256 validSupply = siftContract.totalSupply() - siftContract.balanceOf(marketplaceContract.buybackShareholderAccount());
 
