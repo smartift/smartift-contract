@@ -537,6 +537,10 @@ contract Marketplace {
 
     /* Handle being told that an account balance has reduced - we can then cancel orders as appropriate.  This happens when the user sends funds outside of the marketplace. */
     function notifyBalanceReduced(address _from, uint256 _amount) contractInitialised {
+        // If we're closed just return now
+        if (isClosed)
+            return;
+            
         // Ensure we were called from SIFT itself
         if (msg.sender != siftContractAddress)
             throw;

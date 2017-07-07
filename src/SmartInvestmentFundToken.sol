@@ -20,19 +20,22 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
     /* Fired when the fund is eventually closed. */
     event FundClosed();
 
-    /* This modifier allows a method to only be called by current admins */
+    /* Fired if the marketplace contract is relocated during the ICO phase. */
+    event MarketplaceContractRelocated(address addr, uint256 newVersion);
+
+    /* This modifier allows a method to only be called by current admins. */
     modifier adminOnly {
         if (!authenticationManager.isCurrentAdmin(msg.sender)) throw;
         _;
     }
     
     /* Create a new instance of this fund with links to other contracts that are required. */
-    function SmartInvestmentFundToken(address _authenticationManagerAddress, address _icoContractAddres, address _marketplaceContractAddress) {
+    function SmartInvestmentFundToken(address _authenticationManagerAddress, address _icoContractAddress, address _marketplaceContractAddress) {
         /* Setup access to our other contracts and validate their versions */
         authenticationManager = AuthenticationManager(_authenticationManagerAddress);
         if (authenticationManager.contractVersion() != 100201707071124)
             throw;
-        IcoPhaseManagement icoPhaseManagement = IcoPhaseManagement(_icoContractAddres);
+        IcoPhaseManagement icoPhaseManagement = IcoPhaseManagement(_icoContractAddress);
         if (icoPhaseManagement.contractVersion() != 300201707071208)
             throw;
         Marketplace marketplace = Marketplace(_marketplaceContractAddress);
@@ -40,7 +43,7 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
             throw;
         
         /* Store our special addresses */
-        icoContractAddress = _icoContractAddres;
+        icoContractAddress = _icoContractAddress;
         marketplaceContractAddress = _marketplaceContractAddress;
     }
 
@@ -48,6 +51,27 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
     function contractVersion() constant returns(uint256) {
         /* SIFT contract identifies as 500YYYYMMDDHHMM */
         return 500201707071147;
+    }
+
+    /* Relocates the marketplace contract to a new address allowing for udpates to the marketplace code during the ICO when marketplace is not yet active. */
+    function marketplaceContractRelocate(address _marketplaceContractAddress, uint256 _newVersion) adminOnly {
+        /* Check whether ICO has finished, if it has then we have to throw as we are immutable once ICO has ended */
+        IcoPhaseManagement icoPhaseManagement = IcoPhaseManagement(icoContractAddress);
+        if (!icoPhaseManagement.icoPhase())
+            throw;
+
+        /* Check supplied version is in suitable range for marketplace */
+        if (_newVersion <= 400201707071240 || _newVersion >= 400201800000000) /* Shouldn't run in to 2018 but this is better than a 5000* cap */
+            throw;
+
+        // Check the contract supplied has this version
+        Marketplace marketplace = Marketplace(_marketplaceContractAddress);
+        if (marketplace.contractVersion() != _newVersion)
+            throw;
+        
+        // Store the changes and audit it
+        marketplaceContractAddress = _marketplaceContractAddress;
+        MarketplaceContractRelocated(_marketplaceContractAddress, _newVersion);
     }
 
     /* Mint new tokens - this can only be done by special callers (i.e. the ICO management). */
