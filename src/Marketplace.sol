@@ -87,7 +87,7 @@ contract Marketplace {
     }
 
     /* Create a new instance of this contract and connect to other requisite contracts and validate their versions. */
-    function MarketplaceToken(address _authenticationManagerAddress, address _buybackShareholder) {
+    function Marketplace(address _authenticationManagerAddress, address _buybackShareholder) {
         /* Setup access to our other contracts and validate their versions */
         authenticationManager = AuthenticationManager(_authenticationManagerAddress);
         if (authenticationManager.contractVersion() != 100201707071124)
