@@ -193,8 +193,10 @@ contract Marketplace {
                     uint256 amountToSeller = costToBuy - transactionCost;
                     if (!sellOrder.account.send(amountToSeller))
                         throw;
-                    buybackFundAmount += transactionCost;
-                    BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+                    if (transactionCost > 0) {
+                        buybackFundAmount += transactionCost;
+                        BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+                    }
 
                     /* If nothing remaining to sell, we can stop here */
                     if (sellOrder.quantityRemaining < 1)
@@ -290,8 +292,10 @@ contract Marketplace {
                     uint256 amountToSeller = costToBuy - transactionCost;
                     if (!sellOrder.account.send(amountToSeller))
                         throw;
-                    buybackFundAmount += transactionCost;
-                    BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+                    if (transactionCost > 0) {
+                        buybackFundAmount += transactionCost;
+                        BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+                    }
 
                     /* If nothing remaining to buy, we can stop here */
                     if (buyOrder.quantityRemaining < 1)
@@ -459,7 +463,7 @@ contract Marketplace {
     }
 
     /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
-    function buybackFund() contractInitialised payable adminOnly {
+    function buybackFund() payable {
         if (smartInvestmentFundToken.isClosed())
             throw;
         buybackFundAmount += msg.value;
@@ -520,8 +524,10 @@ contract Marketplace {
             throw;
         buybackFundAmount -= amountToSeller;
         BuybackFundsRemoved(amountToSeller, buybackFundAmount, "Share Buyback");
-        buybackFundAmount += transactionCost;
-        BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+        if (transactionCost > 0) {
+            buybackFundAmount += transactionCost;
+            BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+        }
     }
 
     /* Handle being told that an account balance has reduced - we can then cancel orders as appropriate.  This happens when the user sends funds outside of the marketplace. */
