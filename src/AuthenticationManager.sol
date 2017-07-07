@@ -47,7 +47,11 @@ contract AuthenticationManager {
     /* Adds a user to our list of admins */
     function add(address _address) {
         /* Ensure we're an admin */
-        if (!isCurrentAdmin(_address))
+        if (!isCurrentAdmin(msg.sender))
+            throw;
+
+        // Fail if this account is already admin
+        if (adminUsers[_address])
             throw;
         
         // Add the user
@@ -59,8 +63,16 @@ contract AuthenticationManager {
 
     /* Removes a user from our list of admins but keeps them in the history audit */
     function remove(address _address) {
+        /* Ensure we're an admin */
+        if (!isCurrentAdmin(msg.sender))
+            throw;
+
         /* Don't allow removal of self */
         if (_address == msg.sender)
+            throw;
+
+        // Fail if this account is already non-admin
+        if (!adminUsers[_address])
             throw;
 
         /* Remove this admin user */
