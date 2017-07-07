@@ -491,9 +491,9 @@ contract Marketplace {
         /* Check this sell orders price - is it within our buy/sell range? */
         Order sellOrder = sellOrders[orderIndex];
         if (buybackMinimumPurchaseAmount > 0 && sellOrder.price < buybackMinimumPurchaseAmount)
-            throw;
+            return;
         if (buybackMaximumPurchaseAmount > 0 && sellOrder.price > buybackMaximumPurchaseAmount)
-            throw;
+            return;
 
         /* Can we afford any shares at this price? */
         uint256 amountToPurchase = buybackFundAmount / sellOrder.price;
