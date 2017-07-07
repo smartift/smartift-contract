@@ -332,25 +332,8 @@ contract Marketplace {
         /* If we're closed, throw */
         if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
-
-        /* Determine remaining amount to return */
-        uint256 etherToReturn;
-        bool found = false;
-        for (uint256 i = 0; i < buyOrders.length; i++)
-            if (buyOrders[i].id == _orderId && buyOrders[i].account == msg.sender) {
-                found = true;
-                etherToReturn = buyOrders[i].amountLoaded - buyOrders[i].amountSpent;
-                break;
-            }
-        if (!found)
-            throw;
         
-        /* Close the order */
         cancelOrder(true, _orderId);
-
-        /* Finally send back the ether to the caller */
-        if (etherToReturn > 0 && !msg.sender.send(etherToReturn))
-            throw;
     }
 
     function cancelOrder(bool _isBuy, uint256 _orderId) private {
