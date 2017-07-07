@@ -111,7 +111,16 @@ contract Marketplace {
         if (smartInvestmentFundToken.contractVersion() != 500201707071147)
             throw;
         siftContractAddress = siftContractAddress;
-        MarketOpened();
+    }
+
+    /* Returns how many sell orders are present in the market. */
+    function sellOrderCount() constant returns (uint256 _count) {
+        _count = sellOrders.length;
+    }
+
+    /* Returns how many buy orders are present in the market. */
+    function buyOrderCount() constant returns (uint256 _count) {
+        _count = buyOrders.length;
     }
 
     /* Gets the contract version for validation */
