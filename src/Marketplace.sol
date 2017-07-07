@@ -30,7 +30,7 @@ contract Marketplace {
     uint256 nextOrderId = 1;
 
     /* Defines if the marketplace is currently closed */
-    bool isClosed = true;
+    bool public isClosed = true;
 
     /* Defines a map allowing people to withdraw funds if a market was closed and repayment failed */
     mapping (address => uint256) failedWithdrawRequests;
@@ -466,9 +466,12 @@ contract Marketplace {
     /* Withdraws buyback funds to the calling admin address for use if we ever have issues with buyback process and money that could be re-invested in the fund
        ends up trapped here. */
     function buybackWithdraw() contractInitialised adminOnly {
-        if (!msg.sender.send(buybackFundAmount))
+        uint256 refundAmount = buybackFundAmount;
+        if (isClosed && refundAmount > this.balance)
+            refundAmount = this.balance;
+        if (!msg.sender.send(refundAmount))
             throw;
-        BuybackFundsRemoved(buybackFundAmount, 0, "Admin Withdrawal");
+        BuybackFundsRemoved(refundAmount, 0, "Admin Withdrawal");
         buybackFundAmount = 0;
     }
 
