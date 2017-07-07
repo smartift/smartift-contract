@@ -1,17 +1,36 @@
 pragma solidity ^0.4.11;
-import "IcoPhasedContract.sol";
-import "Erc20Token.sol";
+import "AuthenticationManager.sol";
+import "SmartInvestmentFundToken.sol";
 
-contract MarketplaceToken is IcoPhasedContract {
+contract Marketplace {
+    /* Defines an order in our marketplace */
     struct Order {
         uint256 id;
         uint256 price;
         uint256 quantityRemaining;
         uint256 quantityStart;
         address account;
-        uint256 amountLoaded;
-        uint256 amountSpent;
+        uint256 amountLoaded;  /* Only useful for buy orders */
+        uint256 amountSpent; /* Only useful for buy orders */
     }
+
+    /* Defines the admin contract we interface with for credentails. */
+    AuthenticationManager authenticationManager;
+
+    /* Defines our interface to the SIFT contract. */
+    SmartInvestmentFundToken smartInvestmentFundToken;
+
+    /* Defines the address of our sift contract. */
+    address siftContractAddress = 0;
+
+    /* The percentage fee to take for any SELL transactions in ether.  This is based to one DP so 1 = 0.1%, 10 = 1% and 1000 = 100%. */
+    uint256 feePercentageOneDp = 5;
+
+    /* Defines the ID of the next order (buy or sell) that we will create. */
+    uint256 nextOrderId = 1;
+
+    /* Defines if the marketplace is currently closed */
+    bool isClosed = true;
 
     /* Defines a map allowing people to withdraw funds if a market was closed and repayment failed */
     mapping (address => uint256) failedWithdrawRequests;
@@ -22,67 +41,116 @@ contract MarketplaceToken is IcoPhasedContract {
     /* Defines all the buy orders in the system */
     Order[] public buyOrders;
 
-    /* The percentage fee to take for any SELL transactions in ether.  This is based to one DP so 1 = 0.1%, 10 = 1% and 1000 = 100%. */
-    uint256 feePercentageOneDp;
+    /* Defines the current amount available in the buyback fund. */
+    uint256 public buybackFundAmount;
 
-    /* Defines the ID of the next order (buy or sell) that we will create. */
-    uint256 nextOrderId;
+    /* Sets the shareholder account for auto buyback */
+    address public buybackShareholderAccount;
 
-    /* Defines if the marketplace is currently closed */
-    bool isClosed;
+    /* Defines the minimum amount that is considered an "in-range" value for the buyback programme. */
+    uint256 buybackMinimumPurchaseAmount;
+    
+    /* Defines the maximum amount that is considered an "in-range" value for the buyback programme. */
+    uint256 buybackMaximumPurchaseAmount;
 
     /* Announces an order is opened */
-    event MarketplaceOrderOpened(string orderType, uint256 id, uint256 price, uint256 quantity);
+    event OrderOpened(string orderType, uint256 id, uint256 price, uint256 quantity);
 
     /* Announces an order is updated */
-    event MarketplaceOrderUpdated(string orderType, uint256 id, uint256 price, uint256 quantity);
+    event OrderUpdated(string orderType, uint256 id, uint256 price, uint256 quantity);
 
     /* Announce an order has been closed */
-    event MarketplaceOrderClosed(string orderType, uint256 id);
+    event OrderClosed(string orderType, uint256 id);
 
     /* Announce that an admin closed all orders for some reason */
-    event MarketplaceAdminClosed(string details);
+    event MarketClosed(string details);
 
     /* Announces that the marketplace has been opened. */
-    event MarketplaceAdminOpened();
+    event MarketOpened();
 
-    function MarketplaceToken(uint256 _feePercentageOneDp) {
-        feePercentageOneDp = _feePercentageOneDp;
-        nextOrderId = 0;
-        isClosed = false;
+    /* Announces funds have been added to the buyback fund */
+    event BuybackFundsAdded(uint256 amount, uint256 newBalance, string source);
+
+    /* Announces funds have been removed from the buyback fund */
+    event BuybackFundsRemoved(uint256 amount, uint256 newBalance, string destination);
+    
+    /* This modifier allows a method to only be called by current admins */
+    modifier adminOnly {
+        if (!authenticationManager.isCurrentAdmin(msg.sender)) throw;
+        _;
+    }
+
+    /* This modifier ensures that the contract is initialised and we have access to the SIFT contract. */
+    modifier contractInitialised {
+        if (siftContractAddress != 0) throw;
+        _;
+    }
+
+    /* Create a new instance of this contract and connect to other requisite contracts and validate their versions. */
+    function MarketplaceToken(address _authenticationManagerAddress, address _buybackShareholder) {
+        /* Setup access to our other contracts and validate their versions */
+        authenticationManager = AuthenticationManager(_authenticationManagerAddress);
+        if (authenticationManager.contractVersion() != 100201707071124)
+            throw;
+        
+        /* Store our buyback shareholedr */
+        if (_buybackShareholder == 0)
+            throw;
+        buybackShareholderAccount = _buybackShareholder;
+    }
+
+    /* Set the SIFT contract address as a one-time operation.  This happens after all the contracts are created and no
+       other functionality can be used until this is set. */
+    function setSiftContractAddress(address _siftContractAddress) {
+        /* This can only happen once in the lifetime of this contract */
+        if (siftContractAddress != 0)
+            throw;
+
+        /* Setup access to our other contracts and validate their versions */
+        smartInvestmentFundToken = SmartInvestmentFundToken(_siftContractAddress);
+        if (smartInvestmentFundToken.contractVersion() != 500201707071147)
+            throw;
+        siftContractAddress = siftContractAddress;
+        MarketOpened();
+    }
+
+    /* Gets the contract version for validation */
+    function contractVersion() constant returns(uint256) {
+        /* Marketplace contract identifies as 400YYYYMMDDHHMM */
+        return 400201707071240;
     }
 
     /* Adds a sell order to the system.  It will follow normal consolidation method. */
-    function marketplaceSellOrder(uint256 price, uint256 quantity) onlyAfterIco returns(uint256 numberSold, uint256 id) {
+    function sell(uint256 _price, uint256 _quantity) contractInitialised returns(uint256 _numberSold, uint256 _id) {
         /* If we're closed, throw */
-        if (isClosed)
+        if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
 
         /* Add the order */
         sellOrders.length++;
-        sellOrders[sellOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, 0, 0);
+        sellOrders[sellOrders.length - 1] = Order(nextOrderId, _price, _quantity, _quantity, msg.sender, 0, 0);
 
         /* Audit the creation */
-        MarketplaceOrderOpened("Sell", nextOrderId, price, quantity);
+        OrderOpened("Sell", nextOrderId, _price, _quantity);
 
         /* Consolidate this sell order against the books */
-        marketplaceConsolidateSell();
+        consolidateSell();
 
         /* Do we have any remaining to purchase?  If so let's use our buybackProcessOrderBook() */
         if (sellOrders[sellOrders.length - 1].quantityRemaining > 0)
-            marketplaceUnfulfilledSellOrder(sellOrders.length - 1);
+            buybackProcess(sellOrders.length - 1);
 
         /* Determine our return values */
-        numberSold = quantity - sellOrders[sellOrders.length - 1].quantityRemaining;
-        id  = nextOrderId;
+        _numberSold = _quantity - sellOrders[sellOrders.length - 1].quantityRemaining;
+        _id  = nextOrderId;
         nextOrderId++;
 
         /* Tidy up the sell / buy orders lists now we've extract the data we care about */
-        marketplaceTidyArrays();
+        tidyArrays();
     }
 
     /* Actually take most recent sell order and sell it for highest price possible - this is a separate function due to stack issues in Solidity */
-    function marketplaceConsolidateSell() private {
+    function consolidateSell() private {
         /* Do an initial sift to determine the highest price that is within our price range in the stack */
         uint256 highestPrice = 0;
         bool validPricesExist = false;
@@ -114,25 +182,19 @@ contract MarketplaceToken is IcoPhasedContract {
                     buyOrders[buyIndex].quantityRemaining -= numberToBuy;
                     buyOrders[buyIndex].amountSpent += costToBuy;
                     sellOrder.quantityRemaining -= numberToBuy;
-                    MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrders[buyIndex].quantityRemaining);
-                    MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrder.quantityRemaining);
+                    OrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrders[buyIndex].quantityRemaining);
+                    OrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrder.quantityRemaining);
 
                     /* Transfer tokens from sell order account to buy order account - include a Transfer() here and update the token recipient lists */
-                    balances[sellOrder.account] -= numberToBuy;
-                    bool isBuyerNew = balances[buyOrder.account] > 0;
-                    balances[buyOrder.account] += numberToBuy;
-                    if (isBuyerNew)
-                        tokenOwnerAdd(buyOrder.account);
-                    if (balances[sellOrder.account] < 1)
-                        tokenOwnerRemove(sellOrder.account);
-                    Transfer(sellOrder.account, buyOrder.account, numberToBuy);
+                    smartInvestmentFundToken.transferShares(sellOrder.account, buyOrder.account, numberToBuy);
 
                     /* Send ether to person with sell order */
                     uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
                     uint256 amountToSeller = costToBuy - transactionCost;
                     if (!sellOrder.account.send(amountToSeller))
                         throw;
-                    marketplaceTransactionCostAvailable(transactionCost);
+                    buybackFundAmount += transactionCost;
+                    BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
 
                     /* If nothing remaining to sell, we can stop here */
                     if (sellOrder.quantityRemaining < 1)
@@ -156,36 +218,36 @@ contract MarketplaceToken is IcoPhasedContract {
     }
 
     /* Adds a buy order to the system.  It will follow normal consolidation method. */
-    function marketplaceBuyOrder(uint256 price, uint256 quantity) onlyAfterIco payable returns(uint256 numberPurchased, uint256 id) {
+    function buy(uint256 _price, uint256 _quantity) contractInitialised payable returns(uint256 _numberPurchased, uint256 _id) {
         /* If we're closed, throw */
-        if (isClosed)
+        if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
 
         /* Ensure correct value was sent with the buy - we store the ether */
-        if (msg.value != quantity * price)
+        if (msg.value != _quantity * _price)
             throw;
 
         /* Create the order */
         buyOrders.length++;
-        buyOrders[buyOrders.length - 1] = Order(nextOrderId, price, quantity, quantity, msg.sender, msg.value, 0);
+        buyOrders[buyOrders.length - 1] = Order(nextOrderId, _price, _quantity, _quantity, msg.sender, msg.value, 0);
 
         /* Audit the creation */
-        MarketplaceOrderOpened("Buy", nextOrderId, price, quantity);
+        OrderOpened("Buy", nextOrderId, _price, _quantity);
 
         /* Consolidate any sell orders against this buy order */
-        marketplaceConsolidateBuy();        
+        consolidateBuy();        
 
         /* Determine our return values */
-        numberPurchased = quantity - buyOrders[buyOrders.length - 1].quantityRemaining;
-        id  = nextOrderId;
+        _numberPurchased = _quantity - buyOrders[buyOrders.length - 1].quantityRemaining;
+        _id  = nextOrderId;
         nextOrderId++;
 
         /* Tidy up the sell / buy orders lists now we've extract the data we care about */
-        marketplaceTidyArrays();
+        tidyArrays();
     }
 
     /* Actually take most recent buy order and buy for lowest price possible - this is a separate function due to stack issues in Solidity */
-    function marketplaceConsolidateBuy() private {
+    function consolidateBuy() private {
         /* Do an initial sift to determine the lowest price that is within our price range in the stack */
         uint256 cheapestPrice = 0;
         bool validPricesExist = false;
@@ -217,25 +279,19 @@ contract MarketplaceToken is IcoPhasedContract {
                     sellOrders[sellIndex].quantityRemaining -= numberToBuy;
                     buyOrder.quantityRemaining -= numberToBuy;
                     buyOrder.amountSpent += costToBuy;
-                    MarketplaceOrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrder.quantityRemaining);
-                    MarketplaceOrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellIndex].quantityRemaining);
+                    OrderUpdated("Buy", buyOrder.id, buyOrder.price, buyOrder.quantityRemaining);
+                    OrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[sellIndex].quantityRemaining);
 
                     /* Transfer tokens from sell order account to buy order account - include a Transfer() here and update the token recipient lists */
-                    balances[sellOrder.account] -= numberToBuy;
-                    bool isBuyerNew = balances[buyOrder.account] > 0;
-                    balances[buyOrder.account] += numberToBuy;
-                    if (isBuyerNew)
-                        tokenOwnerAdd(buyOrder.account);
-                    if (balances[sellOrder.account] < 1)
-                        tokenOwnerRemove(sellOrder.account);
-                    Transfer(sellOrder.account, buyOrder.account, numberToBuy);
+                    smartInvestmentFundToken.transferShares(sellOrder.account, buyOrder.account, numberToBuy);
 
                     /* Send ether to person with sell order */
                     uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
                     uint256 amountToSeller = costToBuy - transactionCost;
                     if (!sellOrder.account.send(amountToSeller))
                         throw;
-                    marketplaceTransactionCostAvailable(transactionCost);
+                    buybackFundAmount += transactionCost;
+                    BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
 
                     /* If nothing remaining to buy, we can stop here */
                     if (buyOrder.quantityRemaining < 1)
@@ -259,25 +315,25 @@ contract MarketplaceToken is IcoPhasedContract {
     }
 
     /* Cancels the specified sell order if it is still valid and owned by the caller. */
-    function marketplaceSellCancel(uint256 orderId) onlyAfterIco {
+    function sellCancel(uint256 _orderId) contractInitialised {
         /* If we're closed, throw */
-        if (isClosed)
+        if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
 
-        marketplaceCancel(false, orderId);
+        cancelOrder(false, _orderId);
     }
 
     /* Cancels the specified buy order if it is still valid and owned by the caller. */
-    function marketplaceBuyCancel(uint256 orderId) onlyAfterIco {
+    function buyCancel(uint256 _orderId) contractInitialised {
         /* If we're closed, throw */
-        if (isClosed)
+        if (isClosed || smartInvestmentFundToken.isClosed())
             throw;
 
         /* Determine remaining amount to return */
         uint256 etherToReturn;
         bool found = false;
         for (uint256 i = 0; i < buyOrders.length; i++)
-            if (buyOrders[i].id == orderId && buyOrders[i].account == msg.sender) {
+            if (buyOrders[i].id == _orderId && buyOrders[i].account == msg.sender) {
                 found = true;
                 etherToReturn = buyOrders[i].amountLoaded - buyOrders[i].amountSpent;
                 break;
@@ -286,26 +342,26 @@ contract MarketplaceToken is IcoPhasedContract {
             throw;
         
         /* Close the order */
-        marketplaceCancel(true, orderId);
+        cancelOrder(true, _orderId);
 
         /* Finally send back the ether to the caller */
         if (etherToReturn > 0 && !msg.sender.send(etherToReturn))
             throw;
     }
 
-    function marketplaceCancel(bool isBuy, uint256 orderId) private {
+    function cancelOrder(bool _isBuy, uint256 _orderId) private {
         /* Mark the order as no longer having any quantity if it belongs to the caller */
         bool found = false;
         uint256 i;
-        if (isBuy) {
+        if (_isBuy) {
             for (i = 0; i < buyOrders.length; i++)
-                if (buyOrders[i].id == orderId && buyOrders[i].account == msg.sender) {
+                if (buyOrders[i].id == _orderId && buyOrders[i].account == msg.sender) {
                     buyOrders[i].quantityRemaining = 0;
                     found = true;
                 }
         } else {
             for (i = 0; i < sellOrders.length; i++)
-                if (sellOrders[i].id == orderId && sellOrders[i].account == msg.sender) {
+                if (sellOrders[i].id == _orderId && sellOrders[i].account == msg.sender) {
                     sellOrders[i].quantityRemaining = 0;
                     found = true;
                 }
@@ -314,21 +370,21 @@ contract MarketplaceToken is IcoPhasedContract {
             throw;
         
         /* We found it so announce closure */
-        MarketplaceOrderClosed(isBuy ? "Buy" : "Sell", orderId);
+        OrderClosed(_isBuy ? "Buy" : "Sell", _orderId);
 
         /* Tidy up the sell / buy orders lists now we've extract the data we care about */
-        marketplaceTidyArrays();
+        tidyArrays();
     }
 
     /* Tidy up the buy and sell order arrays - removing any now-empty items and resizing the arrays accordingly. */
-    function marketplaceTidyArrays() private {
+    function tidyArrays() private {
         /* We enumerate through the buy array looking for any with a remaining balance of 0 and shuffle up from there, keep doing this until we get to the end */
         uint256 mainLoopIndex;
         uint256 shuffleIndex;
         for (mainLoopIndex = 0; mainLoopIndex < buyOrders.length; mainLoopIndex++) {
             if (buyOrders[mainLoopIndex].quantityRemaining < 1) {
                 /* First lets mark this as closed in the audit */
-                MarketplaceOrderClosed("Buy", buyOrders[mainLoopIndex].id);
+                OrderClosed("Buy", buyOrders[mainLoopIndex].id);
 
                 /* Attempt to send back any remaining funds that have not been spent */
                 uint256 etherToReturn = buyOrders[mainLoopIndex].amountLoaded - buyOrders[mainLoopIndex].amountSpent;
@@ -344,7 +400,7 @@ contract MarketplaceToken is IcoPhasedContract {
         for (mainLoopIndex = 0; mainLoopIndex < sellOrders.length; mainLoopIndex++) {
             if (sellOrders[mainLoopIndex].quantityRemaining < 1) {
                 /* First lets mark this as closed in the audit */
-                MarketplaceOrderClosed("Sell", sellOrders[mainLoopIndex].id);
+                OrderClosed("Sell", sellOrders[mainLoopIndex].id);
 
                 /* We have an empty order so we need to shuffle all remaining orders down and reduce size of the order book */
                 for (shuffleIndex = mainLoopIndex; shuffleIndex < sellOrders.length - 1; shuffleIndex++)
@@ -356,16 +412,16 @@ contract MarketplaceToken is IcoPhasedContract {
 
     /* Allows an admin to close all open orders and close the entire market place.  Thsi can intentionally happen before ICO is ended - the idea here is to stop any abuse of marketplace or
        to potentially close the marketplace if a bug is somehow found at a future date. */
-    function adminMarketplaceCloseAll(string details) adminOnly {
+    function closeMarket(string _details) contractInitialised adminOnly {
         /* Sell orders are pretty simple - just audit their closure */
         uint256 i;
         for (i = 0; i < sellOrders.length; i++)
-            MarketplaceOrderClosed("Sell", sellOrders[i].id);
+            OrderClosed("Sell", sellOrders[i].id);
         sellOrders.length = 0;
 
         /* Buy orders we need to refund any payments */
         for (i = 0; i < buyOrders.length; i++) {
-            MarketplaceOrderClosed("Buy", buyOrders[i].id);
+            OrderClosed("Buy", buyOrders[i].id);
             uint256 refundAmount = buyOrders[i].amountLoaded - buyOrders[i].amountSpent;
             if (refundAmount > 0 && !buyOrders[i].account.send(refundAmount))
                 /* We cannot stop the whole thing as this is potentially critical code if we're trying to live-fix a defect so we have to enter a withdrawable state */
@@ -374,7 +430,7 @@ contract MarketplaceToken is IcoPhasedContract {
         buyOrders.length = 0;
 
         /* Audit this event */
-        MarketplaceAdminClosed(details);
+        MarketClosed(_details);
 
         /* Close the marketplace */
         isClosed = true;
@@ -382,18 +438,18 @@ contract MarketplaceToken is IcoPhasedContract {
     }
 
     /* Re-opens a closed marketpalce. */
-    function adminMarketplaceOpen() adminOnly {
+    function openMarket() contractInitialised adminOnly {
         /* We can only work on closed marketplace */
-        if (!isClosed)
+        if (!isClosed || smartInvestmentFundToken.isClosed())
             throw;
         
         /* Re-open the market */
-        MarketplaceAdminOpened();
+        MarketOpened();
         isClosed = false;
     }
 
     /* Allows withdrawal of funds that were allocated after a failed withdrawal during market closure */
-    function marketplaceEmergencyWithdrawal() {
+    function emergencyWithdrawal() contractInitialised {
         uint256 amountToWithdraw = failedWithdrawRequests[msg.sender];
         if (amountToWithdraw < 1)
             throw;
@@ -402,14 +458,78 @@ contract MarketplaceToken is IcoPhasedContract {
             throw;
     }
 
+    /* Adds funds that can be used for buyback purposes and are kept in this wallet until buyback is complete */
+    function buybackFund() contractInitialised payable adminOnly {
+        if (smartInvestmentFundToken.isClosed())
+            throw;
+        buybackFundAmount += msg.value;
+        BuybackFundsAdded(msg.value, buybackFundAmount, "Admin Funding");
+    }
+
+    /* Withdraws buyback funds to the calling admin address for use if we ever have issues with buyback process and money that could be re-invested in the fund
+       ends up trapped here. */
+    function buybackWithdraw() contractInitialised adminOnly {
+        if (!msg.sender.send(buybackFundAmount))
+            throw;
+        BuybackFundsRemoved(buybackFundAmount, 0, "Admin Withdrawal");
+        buybackFundAmount = 0;
+    }
+
+    /* Sets minimum and maximum amounts for buyback where 0 indicates no limit */
+    function buybackSetRates(uint256 _minimum, uint256 _maximum) contractInitialised adminOnly {
+        if (smartInvestmentFundToken.isClosed())
+            throw;
+
+        /* Store values in public variables */
+        buybackMinimumPurchaseAmount = _minimum;
+        buybackMaximumPurchaseAmount = _maximum;
+    }
+
     /* Indicates a new buy order could not be fulfilled by the marketplace directly giving a chance for descendent classes to do something with it. */
-    function marketplaceUnfulfilledSellOrder(uint256 orderIndex) private;
+    function buybackProcess(uint256 orderIndex) private {
+        /* Skip if no buyback fund left */
+        if (buybackFundAmount < 1)
+            return;
 
-    /* Handle the transaction fee from a sell order being available to the contract. */
-    function marketplaceTransactionCostAvailable(uint256 amount) private;
+        /* Check this sell orders price - is it within our buy/sell range? */
+        Order sellOrder = sellOrders[orderIndex];
+        if (buybackMinimumPurchaseAmount > 0 && sellOrder.price < buybackMinimumPurchaseAmount)
+            throw;
+        if (buybackMaximumPurchaseAmount > 0 && sellOrder.price > buybackMaximumPurchaseAmount)
+            throw;
 
-    /* Handle the balance of an ECR account reducing - in our case we need to consolidate any of their sell orders at this point */
-    function ercReducedBalance(address _from, uint256 _amount) private {
+        /* Can we afford any shares at this price? */
+        uint256 amountToPurchase = buybackFundAmount / sellOrder.price;
+        if (amountToPurchase < 1)
+            return;
+        if (amountToPurchase > sellOrder.quantityRemaining)
+            amountToPurchase = sellOrder.quantityRemaining;
+        
+        /* Great we can buy some - so let's do it! */
+        smartInvestmentFundToken.transferShares(buybackShareholderAccount, sellOrder.account, amountToPurchase);
+
+        /* Now adjust their order */
+        sellOrders[orderIndex].quantityRemaining -= amountToPurchase;
+        OrderUpdated("Sell", sellOrder.id, sellOrder.price, sellOrders[orderIndex].quantityRemaining);
+
+        /* Finally lets send some ether to the seller minus fees */
+        uint256 costToBuy = amountToPurchase * sellOrder.price;
+        uint256 transactionCost = costToBuy / 1000 * feePercentageOneDp;
+        uint256 amountToSeller = costToBuy - transactionCost;
+        if (!sellOrder.account.send(amountToSeller))
+            throw;
+        buybackFundAmount -= amountToSeller;
+        BuybackFundsRemoved(amountToSeller, buybackFundAmount, "Share Buyback");
+        buybackFundAmount += transactionCost;
+        BuybackFundsAdded(transactionCost, buybackFundAmount, "Marketplace Fee");
+    }
+
+    /* Handle being told that an account balance has reduced - we can then cancel orders as appropriate.  This happens when the user sends funds outside of the marketplace. */
+    function notifyBalanceReduced(address _from, uint256 _amount) contractInitialised {
+        // Ensure we were called from SIFT itself
+        if (msg.sender != siftContractAddress)
+            return;
+
         /* We close the most recent trades first (last in, first sacrificed) */
         uint256 toRemove = _amount;
         bool wereAnyClosed = false;
@@ -425,13 +545,13 @@ contract MarketplaceToken is IcoPhasedContract {
                 wereAnyClosed = true;
             } else {
                 sellOrders[i].quantityRemaining -= toRemove;
-                MarketplaceOrderUpdated("Sell", sellOrders[i].id, sellOrders[i].price, sellOrders[i].quantityRemaining);
+                OrderUpdated("Sell", sellOrders[i].id, sellOrders[i].price, sellOrders[i].quantityRemaining);
                 break;
             }
         }
 
         /* Consolidate any arrays if we closed any trades */
         if (wereAnyClosed)
-            marketplaceTidyArrays();
+            tidyArrays();
     }
 }

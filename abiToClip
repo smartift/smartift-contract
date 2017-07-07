@@ -1,0 +1,2 @@
+#!/bin/bash
+cat out/$1.abi |xclip -selection clipboard

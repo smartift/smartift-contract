@@ -1,2 +1,0 @@
-#!/bin/bash
-./concat.pl |xclip -selection clipboard

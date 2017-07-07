@@ -1,7 +1,6 @@
 pragma solidity ^0.4.11;
 
 contract Erc20Token {
-
     /* Map all our our balances for issued tokens */
     mapping (address => uint256) balances;
 
@@ -52,6 +51,16 @@ contract Erc20Token {
             return true;
         }
         return false;
+    }
+
+    /* Returns the total number of holders of this currency. */
+    function tokenHolderCount() constant returns (uint256) {
+        return allTokenHolders.length;
+    }
+
+    /* Gets the token holder at the specified index. */
+    function tokenHolder(uint256 _index) constant returns (address) {
+        return allTokenHolders[_index];
     }
  
     /* Adds an approval for the specified account to spend money of the message sender up to the defined limit */
