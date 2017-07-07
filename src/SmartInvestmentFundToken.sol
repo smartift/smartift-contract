@@ -4,7 +4,7 @@ import "IcoPhaseManagement.sol";
 import "Marketplace.sol";
 
 /* The SIFT itself is a simple extension of the ERC20 that allows for granting other SIFT contracts special rights to act on behalf of all transfers. */
-contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "SIFT", 1) {
+contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "SIFT", 0) {
     /* Defines the admin contract we interface with for credentails. */
     AuthenticationManager authenticationManager;
 
