@@ -57,6 +57,16 @@ contract TransparencyRelayer {
         return 200201707071127;
     }
 
+    /* Returns how many fund values are present in the market. */
+    function fundValueCount() constant returns (uint256 _count) {
+        _count = fundValues.length;
+    }
+
+    /* Returns how account balances are present in the market. */
+    function accountBalanceCount() constant returns (uint256 _count) {
+        _count = accountBalances.length;
+    }
+
     /* Defines the current value of the funds assets in USD and ETHER */
     function fundValuePublish(uint256 _usdTotalFund, uint256 _etherTotalFund, uint256 _definedTimestamp) adminOnly {
         /* Store values */
