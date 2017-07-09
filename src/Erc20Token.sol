@@ -47,7 +47,6 @@ contract Erc20Token {
             if (balances[_from] < 1)
                 tokenOwnerRemove(_from);
             Transfer(_from, _to, _amount);
-            ercReducedBalance(_from, _amount);
             return true;
         }
         return false;
@@ -106,7 +105,6 @@ contract Erc20Token {
 
         /* Fire notification event */
         Transfer(msg.sender, _to, _amount);
-        ercReducedBalance(msg.sender, _amount);
         success = true;
     }
 
@@ -147,7 +145,4 @@ contract Erc20Token {
             allTokenHolders[i] = allTokenHolders[i + 1];
         allTokenHolders.length--;
     }
-
-    /* Notify a descendent class that a balance has reduced on an account after a transfer. */
-    function ercReducedBalance(address _from, uint256 _amount) private;
 }

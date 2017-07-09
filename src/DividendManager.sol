@@ -1,25 +1,18 @@
 pragma solidity ^0.4.11;
 import "SmartInvestmentFundToken.sol";
-import "Marketplace.sol";
 
 contract DividendManager {
     /* Our handle to the SIFT contract. */
     SmartInvestmentFundToken siftContract;
 
-    /* Our handle to the marketplace contract. */
-    Marketplace marketplaceContract;
-
     /* Indicates a dividend payment was made */
     event Payment(uint256 etherPerShare, uint256 totalPaidOut);
 
     /* Create our contract with references to other contracts as required. */
-    function DividendManager(address _siftContractAddress, address _marketplaceContractAddress) {
+    function DividendManager(address _siftContractAddress) {
         /* Setup access to our other contracts and validate their versions */
         siftContract = SmartInvestmentFundToken(_siftContractAddress);
         if (siftContract.contractVersion() != 500201707071147)
-            throw;
-        marketplaceContract = Marketplace(_marketplaceContractAddress);
-        if (marketplaceContract.contractVersion() != 400201707071240)
             throw;
     }
 
@@ -35,12 +28,12 @@ contract DividendManager {
         if (siftContract.isClosed())
             throw;
 
-        /* Determine how much coin supply we have minus that held by shareholder */
-        uint256 validSupply = siftContract.totalSupply() - siftContract.balanceOf(marketplaceContract.buybackShareholderAccount());
+        /* Determine how much coin supply we have. */
+        uint256 validSupply = siftContract.totalSupply();
 
         /* Work out from this a dividend per share */
         uint256 paymentPerShare = msg.value / validSupply;
-        uint256 remainder = msg.value - (paymentPerShare * validSupply);
+        //uint256 remainder = msg.value - (paymentPerShare * validSupply);
 
         /* Enum all accounts and send them payment */
         uint256 totalPaidOut = 0;
@@ -59,8 +52,5 @@ contract DividendManager {
 
         /* Audit this */
         Payment(paymentPerShare, totalPaidOut);
-
-        /* Send the rest back to marketplace fund as extra for buyback. */
-        marketplaceContract.buybackFund.value(remainder)();
     }
 }
