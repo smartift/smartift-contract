@@ -131,7 +131,7 @@ contract IcoPhaseManagement {
         if (emergencyFundCount == 0 && this.balance > 0)
             if (!msg.sender.send(this.balance)) {
                 // Add this to the callers balance for emergency refunds
-                if (emergencyFunds[msg.sender] == 0)
+                if (emergencyFunds[msg.sender] > 0)
                     emergencyFunds[msg.sender] += this.balance;
                 else {
                     emergencyFunds[msg.sender] = this.balance;
