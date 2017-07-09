@@ -476,7 +476,7 @@ contract Marketplace {
        ends up trapped here. */
     function buybackWithdraw() contractInitialised adminOnly {
         uint256 refundAmount = buybackFundAmount;
-        if (isClosed && refundAmount > this.balance)
+        if (refundAmount > this.balance)
             refundAmount = this.balance;
         if (!msg.sender.send(refundAmount))
             throw;
