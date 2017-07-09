@@ -5,8 +5,14 @@ contract DividendManager {
     /* Our handle to the SIFT contract. */
     SmartInvestmentFundToken siftContract;
 
-    /* Indicates a dividend payment was made */
-    event Payment(uint256 etherPerShare, uint256 totalPaidOut);
+    /* Handle payments we couldn't make. */
+    mapping (address => uint256) public dividends;
+
+    /* Indicates a payment is now available to a shareholder */
+    event PaymentAvailable(address addr, uint256 amount);
+
+    /* Indicates a dividend payment was made. */
+    event DividendPayment(uint256 paymentPerShare, uint256 timestamp);
 
     /* Create our contract with references to other contracts as required. */
     function DividendManager(address _siftContractAddress) {
@@ -28,29 +34,30 @@ contract DividendManager {
         if (siftContract.isClosed())
             throw;
 
-        /* Determine how much coin supply we have. */
+        /* Determine how much to pay each shareholder. */
         uint256 validSupply = siftContract.totalSupply();
-
-        /* Work out from this a dividend per share */
         uint256 paymentPerShare = msg.value / validSupply;
-        //uint256 remainder = msg.value - (paymentPerShare * validSupply);
+        if (paymentPerShare == 0)
+            throw;
 
         /* Enum all accounts and send them payment */
         uint256 totalPaidOut = 0;
         for (uint256 i = 0; i < siftContract.tokenHolderCount(); i++) {
-            /* Calculate how much goes to this shareholder */
             address addr = siftContract.tokenHolder(i);
-            uint256 etherToSend = paymentPerShare * siftContract.balanceOf(addr);
-            if (etherToSend < 1)
-                continue;
-            totalPaidOut += etherToSend;
+            uint256 dividend = paymentPerShare * siftContract.balanceOf(addr);
+            dividends[addr] += dividend;
+            PaymentAvailable(addr, dividend);
+            totalPaidOut += dividend;
+        }
 
-            /* Now let's send them the money */
-            if (!addr.send(etherToSend))
-                throw;
+        // Attempt to send change
+        uint256 remainder = msg.value - totalPaidOut;
+        if (remainder > 0 && !msg.sender.send(remainder)) {
+            dividends[msg.sender] += remainder;
+            PaymentAvailable(msg.sender, remainder);
         }
 
         /* Audit this */
-        Payment(paymentPerShare, totalPaidOut);
+        DividendPayment(paymentPerShare, now);
     }
 }
