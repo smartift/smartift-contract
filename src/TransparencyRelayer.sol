@@ -85,5 +85,4 @@ contract TransparencyRelayer {
         /* Audit this */
         AccountBalance(_accountType, _accountIssuer, _balance, _accountReference, _validationUrl, _timestamp, now);
     }
-
 }
