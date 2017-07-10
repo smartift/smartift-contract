@@ -28,8 +28,8 @@ contract DividendManager {
         return 600201707071502;
     }
 
-    /* Makes a dividend payment - we send it to all coin holders but we exclude any coins held in the shareholder account as the equivalent dividend is excluded prior to paying in to reduce overall
-       transaction fees */
+    /* Makes a dividend payment - we make it available to all senders then send the change back to the caller.  We don't actually send the payments to everyone to reduce gas cost and also to 
+       prevent potentially getting into a situation where we have recipients throwing causing dividend failures and having to consolidate their dividends in a separate process. */
     function () payable {
         if (siftContract.isClosed())
             throw;
@@ -59,5 +59,20 @@ contract DividendManager {
 
         /* Audit this */
         DividendPayment(paymentPerShare, now);
+    }
+
+    /* Allows a user to request a withdrawal of their dividend in full. */
+    function withdrawDividend() {
+        // Ensure we have dividends available
+        if (dividends[msg.sender] == 0)
+            throw;
+        
+        // Determine how much we're sending and reset the count
+        uint256 dividend = dividends[msg.sender];
+        dividends[msg.sender] = 0;
+
+        // Attempt to withdraw
+        if (!msg.sender.send(dividend))
+            throw;
     }
 }
