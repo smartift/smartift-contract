@@ -16,10 +16,7 @@ contract IcoPhaseManagement {
     uint256 constant icoUnitPrice = 10 finney;
 
     /* If an ICO is abandoned and some withdrawals fail then this map allows people to request withdrawal of locked-in ether. */
-    mapping(address => uint256) emergencyFunds;
-
-    /* Defines how many accounts are in the emergency fund map. */
-    uint256 emergencyFundCount = 0;
+    mapping(address => uint256) public abandonedIcoBalances;
 
     /* Defines our interface to the SIFT contract. */
     SmartInvestmentFundToken smartInvestmentFundToken;
@@ -102,7 +99,7 @@ contract IcoPhaseManagement {
     }
 
     /* Abandons the ICO and returns funds to shareholders.  Any failed funds can be separately withdrawn once the ICO is abandoned. */
-    function abandon() adminOnly onlyDuringIco {
+    function abandon(string details) adminOnly onlyDuringIco {
         /* Work out a refund per share per share */
         uint256 paymentPerShare = this.balance / smartInvestmentFundToken.totalSupply();
 
@@ -115,56 +112,31 @@ contract IcoPhaseManagement {
             if (etherToSend < 1)
                 continue;
 
-            /* Now let's send them the money */
-            if (addr.send(etherToSend)) {
-                // We don't let a failed payment stop us - this could somehow prevent fund shutdown and lock everyone's funds in, instead we set up for withdrawal request mechanism
-                emergencyFunds[addr] = etherToSend;
-                emergencyFundCount++;
-            }
+            /* Allocate appropriate amount of fund to them */
+            abandonedIcoBalances[addr] += etherToSend;
         }
 
-        // Audit the abandonment
+        /* Audit the abandonment */
         icoAbandoned = true;
-        IcoAbandoned(emergencyFundCount == 0 ? "Fund shut down after full refunds" : "Some refunds failed, emergency withdrawal is now open");
+        IcoAbandoned(details);
 
         // There should be no money left, but withdraw just incase for manual resolution
-        if (emergencyFundCount == 0 && this.balance > 0)
-            if (!msg.sender.send(this.balance)) {
+        if (this.balance > 0)
+            if (!msg.sender.send(this.balance))
                 // Add this to the callers balance for emergency refunds
-                if (emergencyFunds[msg.sender] > 0)
-                    emergencyFunds[msg.sender] += this.balance;
-                else {
-                    emergencyFunds[msg.sender] = this.balance;
-                    emergencyFundCount++;
-                }
-            }
+                abandonedIcoBalances[msg.sender] += this.balance;
     }
 
     /* Allows people to withdraw funds that failed to send during the abandonment of the ICO for any reason. */
-    function emergencyWithdrawal() {
+    function abandonedFundWithdrawal() {
         // This functionality only exists if an ICO was abandoned
-        if (!icoAbandoned || emergencyFundCount == 0)
+        if (!icoAbandoned || abandonedIcoBalances[msg.sender] == 0)
             throw;
         
-        // See how much we owe and if nothing, throw
-        if (emergencyFunds[msg.sender] == 0)
-            throw;
-        uint256 funds = emergencyFunds[msg.sender];
-        emergencyFunds[msg.sender] = 0;
-        emergencyFundCount--;
+        // Attempt to send them to funds
+        uint256 funds = abandonedIcoBalances[msg.sender];
+        abandonedIcoBalances[msg.sender] = 0;
         if (!msg.sender.send(funds))
             throw;
-
-        // Signify full shutdown if appropriate
-        if (emergencyFundCount == 0) {
-            IcoAbandoned("Fund shut down after full refunds");
-
-            // If we're finished there should be no funds left, if there are then we have an issue to manually resolve rather than trapping in the contract
-            if (this.balance > 0)
-                if (!msg.sender.send(this.balance)) {
-                    // No choice left here but to do a self destruct to obtain the funds
-                    selfdestruct(msg.sender);
-                }
-        }
     }
 }
