@@ -100,11 +100,16 @@ contract IcoPhaseManagement {
 
     /* Abandons the ICO and returns funds to shareholders.  Any failed funds can be separately withdrawn once the ICO is abandoned. */
     function abandon(string details) adminOnly onlyDuringIco {
+        /* If already abandoned throw an error */
+        if (icoAbandoned)
+            throw;
+
         /* Work out a refund per share per share */
         uint256 paymentPerShare = this.balance / smartInvestmentFundToken.totalSupply();
 
         /* Enum all accounts and send them refund */
         uint numberTokenHolders = smartInvestmentFundToken.tokenHolderCount();
+        uint256 totalAbandoned = 0;
         for (uint256 i = 0; i < numberTokenHolders; i++) {
             /* Calculate how much goes to this shareholder */
             address addr = smartInvestmentFundToken.tokenHolder(i);
@@ -114,6 +119,7 @@ contract IcoPhaseManagement {
 
             /* Allocate appropriate amount of fund to them */
             abandonedIcoBalances[addr] += etherToSend;
+            totalAbandoned += etherToSend;
         }
 
         /* Audit the abandonment */
@@ -121,10 +127,11 @@ contract IcoPhaseManagement {
         IcoAbandoned(details);
 
         // There should be no money left, but withdraw just incase for manual resolution
-        if (this.balance > 0)
-            if (!msg.sender.send(this.balance))
+        uint256 remainder = this.balance - totalAbandoned;
+        if (remainder > 0)
+            if (!msg.sender.send(remainder))
                 // Add this to the callers balance for emergency refunds
-                abandonedIcoBalances[msg.sender] += this.balance;
+                abandonedIcoBalances[msg.sender] += remainder;
     }
 
     /* Allows people to withdraw funds that failed to send during the abandonment of the ICO for any reason. */
