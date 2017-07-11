@@ -4,9 +4,6 @@ import "IcoPhaseManagement.sol";
 
 /* The SIFT itself is a simple extension of the ERC20 that allows for granting other SIFT contracts special rights to act on behalf of all transfers. */
 contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "SIFT", 0) {
-    /* Defines the admin contract we interface with for credentails. */
-    AuthenticationManager authenticationManager;
-
     /* Defines the address of the ICO contract which is the only contract permitted to mint tokens. */
     address public icoContractAddress;
 
@@ -18,19 +15,10 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
 
     /* Fired when the fund is eventually closed. */
     event FundClosed();
-
-    /* This modifier allows a method to only be called by current admins. */
-    modifier adminOnly {
-        if (!authenticationManager.isCurrentAdmin(msg.sender)) throw;
-        _;
-    }
     
     /* Create a new instance of this fund with links to other contracts that are required. */
-    function SmartInvestmentFundToken(address _authenticationManagerAddress, address _icoContractAddress) {
+    function SmartInvestmentFundToken(address _icoContractAddress) {
         /* Setup access to our other contracts and validate their versions */
-        authenticationManager = AuthenticationManager(_authenticationManagerAddress);
-        if (authenticationManager.contractVersion() != 100201707071124)
-            throw;
         icoPhaseManagement = IcoPhaseManagement(_icoContractAddress);
         if (icoPhaseManagement.contractVersion() != 300201707071208)
             throw;
