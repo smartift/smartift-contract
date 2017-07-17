@@ -57,7 +57,7 @@ contract SmartInvestmentFundToken {
 
         /* Setup access to our other contracts and validate their versions */
         icoPhaseManagement = IcoPhaseManagement(_icoContractAddress);
-        if (icoPhaseManagement.contractVersion() != 300201707071208)
+        if (icoPhaseManagement.contractVersion() != 300201707171440)
             throw;
         authenticationManager = AuthenticationManager(_authenticationManagerAddress);
         if (authenticationManager.contractVersion() != 100201707171503)
