@@ -27,6 +27,12 @@ contract IcoPhaseManagement {
     /* Defines the admin contract we interface with for credentails. */
     AuthenticationManager authenticationManager;
 
+    /* Defines the time that the ICO starts. */
+    uint256 constant public icoStartTime = 1501545600; // August 1st 2017 at 00:00:00 UTC
+
+    /* Defines the time that the ICO ends. */
+    uint256 constant public icoEndTime = 1505433600; // September 15th 2017 at 00:00:00 UTC
+
     /* Defines our event fired when the ICO is closed */
     event IcoClosed();
 
@@ -48,6 +54,10 @@ contract IcoPhaseManagement {
 
     /* Create the ICO phase managerment and define the address of the main SIFT contract. */
     function IcoPhaseManagement(address _authenticationManagerAddress) {
+        /* A basic sanity check */
+        if (icoStartTime >= icoEndTime)
+            throw;
+
         /* Setup access to our other contracts and validate their versions */
         authenticationManager = AuthenticationManager(_authenticationManagerAddress);
         if (authenticationManager.contractVersion() != 100201707171503)
@@ -76,6 +86,10 @@ contract IcoPhaseManagement {
 
     /* Close the ICO phase and transition to execution phase */
     function close() adminOnly onlyDuringIco {
+        // Forbid closing contract before the end of ICO
+        if (now <= icoEndTime)
+            throw;
+
         // Close the ICO
         icoPhase = false;
         IcoClosed();
@@ -87,6 +101,10 @@ contract IcoPhaseManagement {
     
     /* Handle receiving ether in ICO phase - we work out how much the user has bought, allocate a suitable balance and send their change */
     function () onlyDuringIco payable {
+        // Forbid funding outside of ICO
+        if (now < icoStartTime || now > icoEndTime)
+            throw;
+
         /* Determine how much they've actually purhcased and any ether change */
         uint256 tokensPurchased = msg.value / icoUnitPrice;
         uint256 purchaseTotalPrice = tokensPurchased * icoUnitPrice;
@@ -103,6 +121,10 @@ contract IcoPhaseManagement {
 
     /* Abandons the ICO and returns funds to shareholders.  Any failed funds can be separately withdrawn once the ICO is abandoned. */
     function abandon(string details) adminOnly onlyDuringIco {
+        // Forbid closing contract before the end of ICO
+        if (now <= icoEndTime)
+            throw;
+
         /* If already abandoned throw an error */
         if (icoAbandoned)
             throw;
