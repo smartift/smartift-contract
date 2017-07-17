@@ -99,7 +99,7 @@ All our contracts are publicly deployed and their source can be verified by ethe
 
 
 | Contract | Address | Source | Validate |
-|:---------||--------|:-------|:---------|
+|:---------|:--------|:-------|:---------|
 | Authentication Manager | 0xc6a3746aa3fec176559f0865fd5240159402a81f | https://git.io/vQNpq | https://etherscan.io/address/0xc6a3746aa3fec176559f0865fd5240159402a81f#code |
 | ICO Phase Management | 0xf8Fc0cc97d01A47E0Ba66B167B120A8A0DeAb949 | https://git.io/vQNpy | https://etherscan.io/address/0xf8Fc0cc97d01A47E0Ba66B167B120A8A0DeAb949#code | 
 | Smart Investment Fund Token | 0x8a187d5285d316bcbc9adafc08b51d70a0d8e000 | https://git.io/vQNpH | https://etherscan.io/address/0x8a187d5285d316bcbc9adafc08b51d70a0d8e000#code |
