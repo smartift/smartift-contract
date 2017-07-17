@@ -1,8 +1,11 @@
 pragma solidity ^0.4.11;
 import "AuthenticationManager.sol";
 import "SmartInvestmentFundToken.sol";
+import "SafeMath.sol";
 
 contract IcoPhaseManagement {
+    using SafeMath for uint256;
+    
     /* Defines whether or not we are in the ICO phase */
     bool public icoPhase = true;
 
@@ -60,7 +63,7 @@ contract IcoPhaseManagement {
 
         /* Setup access to our other contracts and validate their versions */
         smartInvestmentFundToken = SmartInvestmentFundToken(_siftContractAddress);
-        if (smartInvestmentFundToken.contractVersion() != 500201707071147)
+        if (smartInvestmentFundToken.contractVersion() != 500201707171440)
             throw;
         siftContractDefined = true;
     }
@@ -68,7 +71,7 @@ contract IcoPhaseManagement {
     /* Gets the contract version for validation */
     function contractVersion() constant returns(uint256) {
         /* ICO contract identifies as 300YYYYMMDDHHMM */
-        return 300201707071208;
+        return 300201707171440;
     }
 
     /* Close the ICO phase and transition to execution phase */
@@ -87,7 +90,7 @@ contract IcoPhaseManagement {
         /* Determine how much they've actually purhcased and any ether change */
         uint256 tokensPurchased = msg.value / icoUnitPrice;
         uint256 purchaseTotalPrice = tokensPurchased * icoUnitPrice;
-        uint256 change = msg.value - purchaseTotalPrice;
+        uint256 change = msg.value.sub(purchaseTotalPrice);
 
         /* Increase their new balance if they actually purchased any */
         if (tokensPurchased > 0)
@@ -118,8 +121,8 @@ contract IcoPhaseManagement {
                 continue;
 
             /* Allocate appropriate amount of fund to them */
-            abandonedIcoBalances[addr] += etherToSend;
-            totalAbandoned += etherToSend;
+            abandonedIcoBalances[addr] = abandonedIcoBalances[addr].add(etherToSend);
+            totalAbandoned = totalAbandoned.add(etherToSend);
         }
 
         /* Audit the abandonment */
@@ -127,11 +130,11 @@ contract IcoPhaseManagement {
         IcoAbandoned(details);
 
         // There should be no money left, but withdraw just incase for manual resolution
-        uint256 remainder = this.balance - totalAbandoned;
+        uint256 remainder = this.balance.sub(totalAbandoned);
         if (remainder > 0)
             if (!msg.sender.send(remainder))
                 // Add this to the callers balance for emergency refunds
-                abandonedIcoBalances[msg.sender] += remainder;
+                abandonedIcoBalances[msg.sender] = abandonedIcoBalances[msg.sender].add(remainder);
     }
 
     /* Allows people to withdraw funds that failed to send during the abandonment of the ICO for any reason. */

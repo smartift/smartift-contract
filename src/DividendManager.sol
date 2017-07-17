@@ -1,7 +1,10 @@
 pragma solidity ^0.4.11;
 import "SmartInvestmentFundToken.sol";
+import "SafeMath.sol";
 
 contract DividendManager {
+    using SafeMath for uint256;
+
     /* Our handle to the SIFT contract. */
     SmartInvestmentFundToken siftContract;
 
@@ -18,14 +21,14 @@ contract DividendManager {
     function DividendManager(address _siftContractAddress) {
         /* Setup access to our other contracts and validate their versions */
         siftContract = SmartInvestmentFundToken(_siftContractAddress);
-        if (siftContract.contractVersion() != 500201707071147)
+        if (siftContract.contractVersion() != 500201707171440)
             throw;
     }
 
     /* Gets the contract version for validation */
     function contractVersion() constant returns(uint256) {
         /* Dividend contract identifies as 600YYYYMMDDHHMM */
-        return 600201707071502;
+        return 600201707171440;
     }
 
     /* Makes a dividend payment - we make it available to all senders then send the change back to the caller.  We don't actually send the payments to everyone to reduce gas cost and also to 
@@ -45,15 +48,15 @@ contract DividendManager {
         for (uint256 i = 0; i < siftContract.tokenHolderCount(); i++) {
             address addr = siftContract.tokenHolder(i);
             uint256 dividend = paymentPerShare * siftContract.balanceOf(addr);
-            dividends[addr] += dividend;
+            dividends[addr] = dividends[addr].add(dividend);
             PaymentAvailable(addr, dividend);
-            totalPaidOut += dividend;
+            totalPaidOut = totalPaidOut.add(dividend);
         }
 
         // Attempt to send change
-        uint256 remainder = msg.value - totalPaidOut;
+        uint256 remainder = msg.value.sub(totalPaidOut);
         if (remainder > 0 && !msg.sender.send(remainder)) {
-            dividends[msg.sender] += remainder;
+            dividends[msg.sender] = dividends[msg.sender].add(remainder);
             PaymentAvailable(msg.sender, remainder);
         }
 

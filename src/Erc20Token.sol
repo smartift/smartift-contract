@@ -1,6 +1,9 @@
 pragma solidity ^0.4.11;
+import "SafeMath.sol";
 
 contract Erc20Token {
+    using SafeMath for uint256;
+
     /* Map all our our balances for issued tokens */
     mapping (address => uint256) balances;
 
@@ -36,15 +39,15 @@ contract Erc20Token {
     }
 
      /* Transfer funds between two addresses that are not the current msg.sender - this requires approval to have been set separately and follows standard ERC20 guidelines */
-     function transferFrom(address _from, address _to, uint256 _amount) returns (bool success) {
-        if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to] + _amount > balances[_to]) {
-            bool isNew = balances[_to] < 1;
-            balances[_from] -= _amount;
-            allowed[_from][msg.sender] -= _amount;
-            balances[_to] += _amount;
+     function transferFrom(address _from, address _to, uint256 _amount) returns (bool) {
+        if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to].add(_amount) > balances[_to]) {
+            bool isNew = balances[_to] == 0;
+            balances[_from] = balances[_from].sub(_amount);
+            allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
+            balances[_to] = balances[_to].add(_amount);
             if (isNew)
                 tokenOwnerAdd(_to);
-            if (balances[_from] < 1)
+            if (balances[_from] == 0)
                 tokenOwnerRemove(_from);
             Transfer(_from, _to, _amount);
             return true;
@@ -85,17 +88,17 @@ contract Erc20Token {
     }
 
     /* Transfer the balance from owner's account to another account */
-    function transfer(address _to, uint256 _amount) returns (bool success) {
+    function transfer(address _to, uint256 _amount) returns (bool) {
         /* Check if sender has balance and for overflows */
-        if (balances[msg.sender] < _amount || balances[_to] + _amount < balances[_to])
-            throw;
+        if (balances[msg.sender] < _amount || balances[_to].add(_amount) < balances[_to])
+            return false;
 
         /* Do a check to see if they are new, if so we'll want to add it to our array */
         bool isRecipientNew = balances[_to] < 1;
 
         /* Add and subtract new balances */
-        balances[msg.sender] -= _amount;
-        balances[_to] += _amount;
+        balances[msg.sender] = balances[msg.sender].sub(_amount);
+        balances[_to] = balances[_to].add(_amount);
 
         /* Consolidate arrays if they are new or if sender now has empty balance */
         if (isRecipientNew)
@@ -105,7 +108,7 @@ contract Erc20Token {
 
         /* Fire notification event */
         Transfer(msg.sender, _to, _amount);
-        success = true;
+        return true;
     }
 
     /* If the specified address is not in our owner list, add them - this can be called by descendents to ensure the database is kept up to date. */

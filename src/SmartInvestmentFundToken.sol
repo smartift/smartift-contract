@@ -1,9 +1,12 @@
 pragma solidity ^0.4.11;
 import "Erc20Token.sol";
 import "IcoPhaseManagement.sol";
+import "SafeMath.sol";
 
 /* The SIFT itself is a simple extension of the ERC20 that allows for granting other SIFT contracts special rights to act on behalf of all transfers. */
 contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "SIFT", 0) {
+    using SafeMath for uint256;
+
     /* Defines the address of the ICO contract which is the only contract permitted to mint tokens. */
     address public icoContractAddress;
 
@@ -30,7 +33,7 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
     /* Gets the contract version for validation */
     function contractVersion() constant returns(uint256) {
         /* SIFT contract identifies as 500YYYYMMDDHHMM */
-        return 500201707071147;
+        return 500201707171440;
     }
 
     /* Mint new tokens - this can only be done by special callers (i.e. the ICO management) during the ICO phase. */
@@ -41,8 +44,8 @@ contract SmartInvestmentFundToken is Erc20Token("Smart Investment Fund Token", "
 
         /* Mint the tokens for the new address*/
         bool isNew = balances[_address] == 0;
-        balances[_address] += _amount;
-        totalSupplyAmount += _amount;
+        totalSupplyAmount = totalSupplyAmount.add(_amount);
+        balances[_address] = balances[_address].add(_amount);
         if (isNew)
             tokenOwnerAdd(_address);
         Transfer(0, _address, _amount);
