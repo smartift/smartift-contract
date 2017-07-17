@@ -36,6 +36,9 @@ contract SmartInvestmentFundToken {
     /* Defines the contract handling the ICO phase. */
     IcoPhaseManagement icoPhaseManagement;
 
+    /* Defines the admin contract we interface with for credentails. */
+    AuthenticationManager authenticationManager;
+
     /* Fired when the fund is eventually closed. */
     event FundClosed();
     
@@ -46,7 +49,7 @@ contract SmartInvestmentFundToken {
     event Approval(address indexed _owner, address indexed _spender, uint256 _value);
 
     /* Create a new instance of this fund with links to other contracts that are required. */
-    function SmartInvestmentFundToken(address _icoContractAddress) {
+    function SmartInvestmentFundToken(address _icoContractAddress, address _authenticationManagerAddress) {
         // Setup defaults
         name = "Smart Investment Fund Token";
         symbol = "SIFT";
@@ -55,6 +58,9 @@ contract SmartInvestmentFundToken {
         /* Setup access to our other contracts and validate their versions */
         icoPhaseManagement = IcoPhaseManagement(_icoContractAddress);
         if (icoPhaseManagement.contractVersion() != 300201707071208)
+            throw;
+        authenticationManager = AuthenticationManager(_authenticationManagerAddress);
+        if (authenticationManager.contractVersion() != 100201707171503)
             throw;
         
         /* Store our special addresses */
@@ -65,6 +71,12 @@ contract SmartInvestmentFundToken {
         assert(msg.data.length == numwords * 32 + 4);
         _;
     } 
+
+    /* This modifier allows a method to only be called by account readers */
+    modifier accountReaderOnly {
+        if (!authenticationManager.isCurrentAccountReader(msg.sender)) throw;
+        _;
+    }
 
     /* Gets the contract version for validation */
     function contractVersion() constant returns(uint256) {
@@ -90,12 +102,12 @@ contract SmartInvestmentFundToken {
     }
 
     /* Returns the total number of holders of this currency. */
-    function tokenHolderCount() constant returns (uint256) {
+    function tokenHolderCount() accountReaderOnly constant returns (uint256) {
         return allTokenHolders.length;
     }
 
     /* Gets the token holder at the specified index. */
-    function tokenHolder(uint256 _index) constant returns (address) {
+    function tokenHolder(uint256 _index) accountReaderOnly constant returns (address) {
         return allTokenHolders[_index];
     }
  
