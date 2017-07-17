@@ -78,6 +78,19 @@ contract SmartInvestmentFundToken {
         _;
     }
 
+    modifier fundSendablePhase {
+        // If it's in ICO phase, forbid it
+        if (icoPhaseManagement.icoPhase())
+            throw;
+
+        // If it's abandoned, forbid it
+        if (icoPhaseManagement.icoAbandoned())
+            throw;
+
+        // We're good, funds can now be transferred
+        _;
+    }
+
     /* Gets the contract version for validation */
     function contractVersion() constant returns(uint256) {
         /* SIFT contract identifies as 500YYYYMMDDHHMM */
@@ -85,7 +98,7 @@ contract SmartInvestmentFundToken {
     }
     
     /* Transfer funds between two addresses that are not the current msg.sender - this requires approval to have been set separately and follows standard ERC20 guidelines */
-    function transferFrom(address _from, address _to, uint256 _amount) onlyPayloadSize(3) returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _amount) fundSendablePhase onlyPayloadSize(3) returns (bool) {
         if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to].add(_amount) > balances[_to]) {
             bool isNew = balances[_to] == 0;
             balances[_from] = balances[_from].sub(_amount);
@@ -112,7 +125,7 @@ contract SmartInvestmentFundToken {
     }
  
     /* Adds an approval for the specified account to spend money of the message sender up to the defined limit */
-    function approve(address _spender, uint256 _amount) onlyPayloadSize(2) returns (bool success) {
+    function approve(address _spender, uint256 _amount) fundSendablePhase onlyPayloadSize(2) returns (bool success) {
         allowed[msg.sender][_spender] = _amount;
         Approval(msg.sender, _spender, _amount);
         return true;
@@ -134,7 +147,7 @@ contract SmartInvestmentFundToken {
     }
 
     /* Transfer the balance from owner's account to another account */
-    function transfer(address _to, uint256 _amount) onlyPayloadSize(2) returns (bool) {
+    function transfer(address _to, uint256 _amount) fundSendablePhase onlyPayloadSize(2) returns (bool) {
         /* Check if sender has balance and for overflows */
         if (balances[msg.sender] < _amount || balances[_to].add(_amount) < balances[_to])
             return false;
