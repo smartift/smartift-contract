@@ -50,7 +50,7 @@ contract IcoPhaseManagement {
     function IcoPhaseManagement(address _authenticationManagerAddress) {
         /* Setup access to our other contracts and validate their versions */
         authenticationManager = AuthenticationManager(_authenticationManagerAddress);
-        if (authenticationManager.contractVersion() != 100201707071124)
+        if (authenticationManager.contractVersion() != 100201707171503)
             throw;
     }
 
