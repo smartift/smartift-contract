@@ -1,4 +1,5 @@
 pragma solidity ^0.4.11;
+import "AuthenticationManager.sol";
 import "IcoPhaseManagement.sol";
 import "SafeMath.sol";
 
