@@ -1,6 +1,6 @@
 #!/bin/bash
 cd src
 #solc --abi --bin --optimize -o ../out --overwrite SmartInvestmentFundToken.sol DividendManager.sol TransparencyRelayer.sol 
-solc --abi --bin --optimize -o ../out --overwrite VoteSvp002.sol
+../bin/solc --abi --bin --optimize -o ../out --overwrite SmartInvestmentFundToken-v2.sol
 cd ..
-rm out/SafeMath* out/VotingBase* 2>/dev/null
+rm out/SafeMath* 2>/dev/null
