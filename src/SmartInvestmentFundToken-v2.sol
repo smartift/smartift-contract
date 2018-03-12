@@ -1,3 +1,4 @@
+pragma solidity ^0.4.21;
 pragma experimental "v0.5.0";
 import "SafeMath.sol";
 
@@ -33,7 +34,7 @@ contract SmartInvestmentFundToken {
 		// Give the 0x00 address the fulll supply and allow the token convertor to transfer it
         balances[0] = totalSupply;
         allowed[0][_tokenConvertor] = totalSupply;
-        Approval(0, _tokenConvertor, totalSupply);
+        emit Approval(0, _tokenConvertor, totalSupply);
     }
 
     modifier onlyPayloadSize(uint numwords) {
@@ -47,7 +48,7 @@ contract SmartInvestmentFundToken {
             balances[_from] = balances[_from].sub(_amount);
             allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
             balances[_to] = balances[_to].add(_amount);
-            Transfer(_from, _to, _amount);
+            emit Transfer(_from, _to, _amount);
             return true;
         }
         return false;
@@ -56,7 +57,7 @@ contract SmartInvestmentFundToken {
     /* Adds an approval for the specified account to spend money of the message sender up to the defined limit */
     function approve(address _spender, uint256 _amount) public onlyPayloadSize(2) returns (bool success) {
         allowed[msg.sender][_spender] = _amount;
-        Approval(msg.sender, _spender, _amount);
+        emit Approval(msg.sender, _spender, _amount);
         return true;
     }
 
@@ -81,7 +82,7 @@ contract SmartInvestmentFundToken {
         balances[_to] = balances[_to].add(_amount);
 
         /* Fire notification event */
-        Transfer(msg.sender, _to, _amount);
+        emit Transfer(msg.sender, _to, _amount);
         return true;
     }
 }
