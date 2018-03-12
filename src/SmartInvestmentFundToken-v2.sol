@@ -1,7 +1,6 @@
-pragma solidity ^0.4.19;
+pragma experimental "v0.5.0";
 import "SafeMath.sol";
 
-/* The SIFT itself is a simple extension of the ERC20 that allows for granting other SIFT contracts special rights to act on behalf of all transfers. */
 contract SmartInvestmentFundToken {
     using SafeMath for uint256;
 
@@ -12,10 +11,10 @@ contract SmartInvestmentFundToken {
     mapping(address => mapping (address => uint256)) allowed;
 
     /* The name of the contract */
-    string public name = "Smart Investment Fund Token";
+    string public name = "Smart Investment Fund Token v2";
 
     /* The symbol for the contract */
-    string public symbol = "SIFT";
+    string public symbol = "XSFT";
 
     /* How many DPs are in use in this contract */
     uint8 public decimals = 6;
@@ -23,7 +22,7 @@ contract SmartInvestmentFundToken {
     /* Defines the current supply of the token in its own units */
     uint256 public totalSupply = 722935000000;
 
-    /* Our transfer event to fire whenever we shift SMRT around */
+    /* Our transfer event to fire whenever we shift XSFT around */
     event Transfer(address indexed from, address indexed to, uint256 value);
     
     /* Our approval event when one user approves another to control */
